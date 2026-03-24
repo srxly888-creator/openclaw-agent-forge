@@ -95,6 +95,26 @@ report = researcher.generate_report(
 print(report["report_path"])
 ```
 
+#### 3. 同步到 OpenClaw Web UI
+
+```bash
+# 将 Agent 同步到 OpenClaw
+forge sync research-assistant --direction to-openclaw
+
+# 在 OpenClaw Web UI 中查看
+# 打开 http://localhost:18789
+```
+
+#### 4. 实时同步
+
+```bash
+# 启动文件监听，实时同步
+forge sync research-assistant --watch
+
+# 现在在 Web UI 或 Forge 中修改配置
+# 两边会自动同步
+```
+
 ### 🤖 预构建 Agent
 
 | Agent | 用途 | 技能数 | 状态 |

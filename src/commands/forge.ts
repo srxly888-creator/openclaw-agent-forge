@@ -7,11 +7,13 @@
  *   forge swarm create <swarm-name> --agents <agent1,agent2>
  *   forge validate --four-layer
  *   forge deploy --env vps
+ *   forge sync <agent-name> --direction <to-openclaw|from-openclaw|bidirectional>
  */
 
 import { Command } from 'commander';
 import { selectSecurityProfile, generateSecurityDocs, validateSecurityConfig } from './security/sandbox-config';
 import { scanFileContent, scanSkillFile, scanPluginConfig, generateScanReport } from './security/ast-scanner';
+import { AgentSync } from '../sync/agent-sync';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,7 +22,7 @@ const program = new Command();
 program
   .name('forge')
   .description('OpenClaw Agent Forge - 安全的智能体锻造工具')
-  .version('1.0.0');
+  .version('2.0.0');
 
 /**
  * 创建新智能体
@@ -223,33 +225,90 @@ program
   });
 
 /**
- * 部署到生产环境
+ * 同步 Agent 到 OpenClaw
  */
 program
-  .command('deploy')
-  .description('部署智能体到生产环境')
-  .option('--env <environment>', '部署环境 (vps|cloud|edge)', 'vps')
-  .option('--provider <provider>', '云服务提供商 (digitalocean|aws|gcp)')
-  .option('--domain <domain>', '域名')
+  .command('sync <agent-name>')
+  .description('同步 Agent 与 OpenClaw')
+  .option('-d, --direction <direction>', '同步方向 (to-openclaw|from-openclaw|bidirectional)', 'bidirectional')
+  .option('-w, --watch', '启动文件监听，实时同步', false)
+  .action(async (agentName, options) => {
+    console.log(`🔄 同步 Agent: ${agentName}`);
+    console.log(`📍 方向: ${options.direction}`);
+
+    const forgePath = process.cwd();
+    const sync = new AgentSync(forgePath);
+
+    try {
+      if (options.direction === 'to-openclaw') {
+        await sync.syncToOpenClaw(agentName);
+      } else if (options.direction === 'from-openclaw') {
+        await sync.syncFromOpenClaw(agentName);
+      } else {
+        // 双向同步
+        await sync.syncToOpenClaw(agentName);
+        await sync.syncFromOpenClaw(agentName);
+      }
+
+      if (options.watch) {
+        console.log('\n🔄 启动实时同步监听...');
+        await sync.startSync(agentName);
+      }
+    } catch (error: any) {
+      console.error(`❌ 同步失败: ${error.message}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * 列出所有 Agent
+ */
+program
+  .command('list')
+  .description('列出所有 Agent')
+  .option('-f, --format <format>', '输出格式 (json|table)', 'table')
   .action((options) => {
-    console.log('🚀 开始部署...\n');
-    console.log(`环境: ${options.env}`);
-    console.log(`提供商: ${options.provider || '未指定'}`);
-    console.log(`域名: ${options.domain || '未指定'}`);
-
-    // TODO: 生成部署配置
-    console.log('\n📁 生成部署文件...');
-    console.log('   - docker-compose.yml');
-    console.log('   - nginx.conf');
-    console.log('   - deploy.sh');
-
-    if (options.provider) {
-      console.log('   - .env.example');
+    const agentsDir = path.join(process.cwd(), 'agents');
+    
+    if (!fs.existsSync(agentsDir)) {
+      console.log('❌ 未找到 agents 目录');
+      return;
     }
 
-    console.log('\n✅ 部署配置已生成');
-    console.log('运行 ./deploy.sh 开始部署');
+    const agents = fs.readdirSync(agentsDir).filter(dir => {
+      const agentPath = path.join(agentsDir, dir);
+      return fs.statSync(agentPath).isDirectory();
+    });
+
+    if (agents.length === 0) {
+      console.log('❌ 未找到任何 Agent');
+      return;
+    }
+
+    if (options.format === 'json') {
+      console.log(JSON.stringify(agents, null, 2));
+    } else {
+      console.log('\n📋 Agent 列表:\n');
+      agents.forEach((agent, index) => {
+        const agentPath = path.join(agentsDir, agent);
+        const soulPath = path.join(agentPath, 'SOUL.md');
+        
+        if (fs.existsSync(soulPath)) {
+          const soulContent = fs.readFileSync(soulPath, 'utf-8');
+          const modelMatch = soulContent.match(/模型[：:]\s*(.+)/);
+          const model = modelMatch ? modelMatch[1].trim() : '未知';
+          
+          console.log(`${index + 1}. ${agent}`);
+          console.log(`   模型: ${model}`);
+        } else {
+          console.log(`${index + 1}. ${agent} (无 SOUL.md)`);
+        }
+      });
+    }
   });
+
+// 解析命令行参数
+program.parse(process.argv);
 
 /**
  * 辅助函数：查找文件
@@ -321,6 +380,89 @@ function validateUserExperience(): { pass: boolean; issues: string[] } {
 
   return { pass: issues.length === 0, issues };
 }
+
+/**
+ * 同步 Agent 到 OpenClaw
+ */
+program
+  .command('sync <agent-name>')
+  .description('同步 Agent 与 OpenClaw')
+  .option('-d, --direction <direction>', '同步方向 (to-openclaw|from-openclaw|bidirectional)', 'bidirectional')
+  .option('-w, --watch', '启动文件监听，实时同步', false)
+  .action(async (agentName, options) => {
+    console.log(`🔄 同步 Agent: ${agentName}`);
+    console.log(`📍 方向: ${options.direction}`);
+    console.log(`👁️  监听: ${options.watch ? '是' : '否'}`);
+
+    const forgePath = process.cwd();
+    const sync = new AgentSync(forgePath);
+
+    try {
+      if (options.direction === 'to-openclaw') {
+        await sync.syncToOpenClaw(agentName);
+      } else if (options.direction === 'from-openclaw') {
+        await sync.syncFromOpenClaw(agentName);
+      } else {
+        // 双向同步
+        await sync.syncToOpenClaw(agentName);
+        await sync.syncFromOpenClaw(agentName);
+      }
+
+      if (options.watch) {
+        console.log('\n👀 启动实时监听...');
+        await sync.startSync(agentName);
+        console.log('按 Ctrl+C 停止监听');
+      }
+    } catch (error: any) {
+      console.error(`❌ 同步失败: ${error.message}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * 列出所有 Agent
+ */
+program
+  .command('list')
+  .description('列出所有 Agent')
+  .option('--forge', '只显示 Forge Agent')
+  .option('--openclaw', '只显示 OpenClaw Agent')
+  .action((options) => {
+    const forgePath = path.join(process.cwd(), 'agents');
+    const openclawPath = path.join(process.env.HOME || '', '.openclaw', 'agents');
+
+    if (!options.openclaw) {
+      console.log('\n📦 Forge Agents:');
+      if (fs.existsSync(forgePath)) {
+        const forgeAgents = fs.readdirSync(forgePath).filter(f => 
+          fs.statSync(path.join(forgePath, f)).isDirectory()
+        );
+        forgeAgents.forEach(agent => {
+          const soulPath = path.join(forgePath, agent, 'SOUL.md');
+          const hasSoul = fs.existsSync(soulPath);
+          console.log(`  ${hasSoul ? '✅' : '⚠️'} ${agent}`);
+        });
+      } else {
+        console.log('  无');
+      }
+    }
+
+    if (!options.forge) {
+      console.log('\n🦞 OpenClaw Agents:');
+      if (fs.existsSync(openclawPath)) {
+        const openclawAgents = fs.readdirSync(openclawPath).filter(f => 
+          fs.statSync(path.join(openclawPath, f)).isDirectory()
+        );
+        openclawAgents.forEach(agent => {
+          const modelsPath = path.join(openclawPath, agent, 'agent', 'models.json');
+          const hasModels = fs.existsSync(modelsPath);
+          console.log(`  ${hasModels ? '✅' : '⚠️'} ${agent}`);
+        });
+      } else {
+        console.log('  无');
+      }
+    }
+  });
 
 // 解析命令行参数
 program.parse(process.argv);
