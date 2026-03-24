@@ -466,73 +466,73 @@ function buildSoulContent(
 
   return `# ${agentName}
 
-## Role
-Define this agent's primary responsibility in one sentence.
+## 角色
+用一句话定义这个智能体的主要职责。
 
-## Core Capabilities
-1. Capability 1
-2. Capability 2
-3. Capability 3
+## 核心能力
+1. 能力 1
+2. 能力 2
+3. 能力 3
 
-## Workflow
-1. Intake request
-2. Plan with constraints
-3. Execute and verify
-4. Summarize outcomes
+## 工作流程
+1. 接收请求
+2. 在约束条件下规划
+3. 执行并验证
+4. 总结结果
 
-## Security Envelope
-- Scenario: ${scenario}
-- Security level: ${level}
-- Principle: least privilege by default
+## 安全策略
+- 使用场景: ${scenario}
+- 安全级别: ${level}
+- 原则: 默认最小权限
 
-## Boundaries
-- Never expose secrets.
-- Ask for confirmation before destructive actions.
-- Keep actions auditable and reversible.
+## 边界
+- 永远不要暴露密钥
+- 执行破坏性操作前请求确认
+- 保持操作可审计和可逆
 `;
 }
 
 function buildAgentsContent(agentName: string, scenario: Scenario): string {
   return `# AGENTS.md - ${agentName}
 
-## Startup Checklist
-1. Read SOUL.md
-2. Read USER.md (if available)
-3. Read today's and yesterday's memory notes
+## 启动检查清单
+1. 阅读 SOUL.md
+2. 阅读 USER.md（如果可用）
+3. 阅读今天和昨天的记忆笔记
 
-## Scenario
+## 使用场景
 - ${scenario}
 
-## Operating Rules
-- Keep responses concise and actionable.
-- Explain tradeoffs clearly before high-risk actions.
-- Prefer reproducible commands and explicit outputs.
+## 操作规则
+- 保持响应简洁和可操作
+- 在执行高风险操作前清楚解释权衡
+- 优先使用可重现的命令和明确输出
 `;
 }
 
 function buildSwarmAgentGuide(agentName: string): string {
   return `# ${agentName} - agent.md
 
-## Responsibility
-Describe what this role owns in the swarm.
+## 职责
+描述这个角色在群体中的职责。
 
-## Inputs
-- Shared task context
-- Outputs from upstream agents
+## 输入
+- 共享任务上下文
+- 上游智能体的输出
 
-## Outputs
-- Structured result for downstream agents
+## 输出
+- 为下游智能体提供的结构化结果
 `;
 }
 
 function buildSwarmAgentSoul(agentName: string): string {
   return `# ${agentName} - soul.md
 
-## Personality
-Calm, precise, and collaborative.
+## 个性
+冷静、精确、协作。
 
-## Mission
-Contribute specialized output that improves overall swarm quality.
+## 使命
+贡献专业输出，提高整体群体质量。
 `;
 }
 
