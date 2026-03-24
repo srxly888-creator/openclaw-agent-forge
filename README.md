@@ -1,17 +1,17 @@
 # OpenClaw Agent Forge
 
-Security-first toolkit for building and maintaining OpenClaw agents.
+面向 OpenClaw 的智能体工程工具箱，默认中文文档与中文 CLI 体验。
 
-**Based on**: [OpenClaw PR #51165 (Agent-Scoped Policy Parity)](https://github.com/openclaw/openclaw/pull/51165)
+**安全架构来源**: [OpenClaw PR #51165（Agent-Scoped Policy Parity）](https://github.com/openclaw/openclaw/pull/51165)
 
-## What This Repo Provides
+## 这个仓库能做什么
 
-- TypeScript CLI (`forge`) for agent scaffolding, security scanning, validation, and sync.
-- Built-in security profile generator aligned with OpenClaw-style least-privilege principles.
-- Bidirectional sync utility for Forge agent files and `~/.openclaw/agents/*/agent`.
-- Starter SOUL templates under [`agents/`](./agents/).
+- 提供 TypeScript CLI（`forge`），用于创建智能体、扫描安全问题、四层校验和双向同步。
+- 内置安全配置生成器，遵循最小权限原则。
+- 支持 Forge 与 `~/.openclaw/agents/*/agent` 的双向配置同步。
+- 提供基础 SOUL 模板（见 `agents/`）。
 
-## Quick Start
+## 快速开始
 
 ```bash
 git clone https://github.com/srxly888-creator/openclaw-agent-forge.git
@@ -20,69 +20,69 @@ npm install
 npm run build
 ```
 
-Run locally without global install:
+本地直接运行（无需全局安装）：
 
 ```bash
 npm run dev -- --help
 ```
 
-Global command (optional):
+可选全局命令：
 
 ```bash
 npm link
 forge --help
 ```
 
-## CLI Commands
+## 常用命令
 
-Create an agent scaffold:
+创建智能体：
 
 ```bash
 forge create my-agent --scenario private-chat --security high
 ```
 
-Create a swarm scaffold:
+创建协作组：
 
 ```bash
 forge swarm create content-team --agents researcher,writer,editor
 ```
 
-Run security scan:
+安全扫描：
 
 ```bash
 forge scan .
 ```
 
-Validate four-layer quality checks:
+四层标准校验：
 
 ```bash
 forge validate --four-layer --strict
 ```
 
-Sync with OpenClaw:
+与 OpenClaw 同步：
 
 ```bash
 forge sync my-agent --direction bidirectional
 forge sync my-agent --watch
 ```
 
-List agents:
+列出智能体：
 
 ```bash
 forge list --scope both --format table
 forge list --scope forge --format json
 ```
 
-## Security Model
+## 安全模型
 
-Security profiles are defined in [`src/security/sandbox-config.ts`](./src/security/sandbox-config.ts):
+安全配置定义在 `src/security/sandbox-config.ts`：
 
-- `maximum`: docker + read-only workspace + no network.
-- `high`: docker + restricted network + limited tools.
-- `medium`: docker + read/write workspace + controlled execution.
-- `low`: native + full network (main-session only).
+- `maximum`：Docker + 只读工作区 + 禁网。
+- `high`：Docker + 受限网络 + 限制工具。
+- `medium`：Docker + 可写工作区 + 受控执行能力。
+- `low`：Native + 全网络（仅主会话）。
 
-Generate plugin security snippets programmatically:
+可通过 API 生成插件安全片段：
 
 ```ts
 import { selectSecurityProfile, generatePluginSecurityConfig } from 'openclaw-agent-forge';
@@ -91,7 +91,7 @@ const profile = selectSecurityProfile('public-chat');
 const pluginConfig = generatePluginSecurityConfig(profile);
 ```
 
-## Development
+## 开发命令
 
 ```bash
 npm run build
@@ -100,20 +100,20 @@ npm run lint
 npm test
 ```
 
-## Repository Layout
+## 目录结构
 
 ```text
 openclaw-agent-forge/
-├── agents/                  # Starter templates
-├── docs/                    # Guides
+├── agents/                  # 模板智能体
+├── docs/                    # 中文文档
 ├── src/
-│   ├── commands/forge.ts    # CLI entry
-│   ├── security/            # Scanner + security profile utilities
-│   └── sync/                # Forge <-> OpenClaw sync
+│   ├── commands/forge.ts    # CLI 入口
+│   ├── security/            # 扫描器与安全配置
+│   └── sync/                # Forge <-> OpenClaw 同步
 ├── SKILL.md
 └── package.json
 ```
 
-## License
+## 许可证
 
 MIT

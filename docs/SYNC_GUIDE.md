@@ -1,59 +1,59 @@
-# Sync Guide
+# 同步指南
 
-Agent Forge supports bidirectional sync with OpenClaw agent config files.
+Agent Forge 支持与 OpenClaw 的双向配置同步。
 
-## Paths
+## 路径约定
 
-- Forge side: `./agents/<agent-name>/`
-- OpenClaw side: `~/.openclaw/agents/<agent-name>/agent/`
+- Forge 侧：`./agents/<agent-name>/`
+- OpenClaw 侧：`~/.openclaw/agents/<agent-name>/agent/`
 
-## Commands
+## 常用命令
 
-Push Forge config to OpenClaw:
+将 Forge 配置推送到 OpenClaw：
 
 ```bash
 forge sync my-agent --direction to-openclaw
 ```
 
-Pull OpenClaw config back to Forge:
+从 OpenClaw 拉取到 Forge：
 
 ```bash
 forge sync my-agent --direction from-openclaw
 ```
 
-Run both directions in sequence:
+双向顺序同步：
 
 ```bash
 forge sync my-agent --direction bidirectional
 ```
 
-Watch mode for continuous sync:
+开启持续监听：
 
 ```bash
 forge sync my-agent --watch
 ```
 
-## File Mapping
+## 文件映射
 
 - `SOUL.md` -> `models.json`
 - `AGENTS.md` -> `auth-profiles.json`
 
-## Notes
+## 注意事项
 
-1. `--watch` requires both paths to exist before startup.
-2. `models.json` must contain at least one provider and one model entry.
-3. API keys should come from environment variables, not committed files.
+1. `--watch` 启动前，Forge 和 OpenClaw 两侧目录都必须存在。
+2. `models.json` 至少要包含一个 provider 和一个 model。
+3. API Key 应来自环境变量，避免写入并提交到仓库。
 
-## Troubleshooting
+## 故障排查
 
-Agent not found:
+智能体不存在：
 
 ```bash
 ls ./agents/my-agent
 ls ~/.openclaw/agents/my-agent/agent
 ```
 
-Invalid JSON error:
+JSON 解析错误：
 
 ```bash
 cat ~/.openclaw/agents/my-agent/agent/models.json | jq .

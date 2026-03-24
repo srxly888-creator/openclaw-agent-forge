@@ -1,38 +1,38 @@
-# Best Practices
+# 最佳实践
 
-## 1. Keep Agent Scope Narrow
+## 1. 控制智能体职责边界
 
-Each agent should own a clear responsibility. Avoid "do-everything" roles.
+每个智能体应只负责清晰且稳定的一类任务，避免“全能型”角色。
 
-## 2. Prefer Least Privilege
+## 2. 坚持最小权限
 
-- Start from `maximum` or `high` security profile.
-- Add permissions only when required by a concrete task.
-- Keep dangerous tools deny-by-default.
+- 默认从 `maximum` 或 `high` 开始。
+- 只在明确业务需要时逐项加权限。
+- 危险工具保持默认拒绝。
 
-## 3. Make Behavior Auditable
+## 3. 保证可审计
 
-- Document agent boundaries in `SOUL.md`.
-- Keep operational constraints in `AGENTS.md`.
-- Store plugin permissions in `openclaw.plugin.json`.
+- 在 `SOUL.md` 写清角色边界。
+- 在 `AGENTS.md` 写清运行约束。
+- 在 `openclaw.plugin.json` 固化权限配置。
 
-## 4. Validate Before Shipping
+## 4. 发布前先校验
 
-Run these checks before merge/deploy:
+建议在合并/发布前执行：
 
 ```bash
 forge scan .
 forge validate --four-layer --strict
 ```
 
-## 5. Keep Sync Safe
+## 5. 安全地做同步
 
-- Use one source of truth per change window to avoid overwrites.
-- Use `--watch` only when both sides are stable and monitored.
-- Verify `models.json` and `auth-profiles.json` after major edits.
+- 一个变更窗口只保留一个事实源，避免双写覆盖。
+- `--watch` 只在双方目录稳定且可监控时开启。
+- 大改后及时核对 `models.json` 与 `auth-profiles.json`。
 
-## 6. Protect Secrets
+## 6. 保护敏感信息
 
-- Never commit API keys or tokens.
-- Use environment variables for runtime credentials.
-- Rotate keys immediately if scanner reports a real exposure.
+- 禁止提交 API Key 或 Token。
+- 运行凭证统一使用环境变量或密钥管理系统。
+- 一旦发现泄露，立即轮换并追踪影响范围。

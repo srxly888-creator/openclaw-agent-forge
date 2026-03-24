@@ -1,19 +1,19 @@
-# Security Guide
+# 安全指南
 
-This project is designed around least-privilege defaults for OpenClaw agent workflows.
+本项目默认遵循 OpenClaw 的最小权限安全策略。
 
-**Security Architecture**: Based on [OpenClaw PR #51165 (Agent-Scoped Policy Parity)](https://github.com/openclaw/openclaw/pull/51165)
+**安全架构参考**: [OpenClaw PR #51165（Agent-Scoped Policy Parity）](https://github.com/openclaw/openclaw/pull/51165)
 
-## Security Profiles
+## 安全配置等级
 
-Defined in `src/security/sandbox-config.ts`:
+定义位置：`src/security/sandbox-config.ts`
 
-- `maximum`: Docker sandbox, read-only workspace, no network.
-- `high`: Docker sandbox, restricted network, limited tools.
-- `medium`: Docker sandbox, read/write workspace, controlled tooling.
-- `low`: Native mode for trusted main-session usage.
+- `maximum`：Docker 沙箱 + 只读工作区 + 禁网。
+- `high`：Docker 沙箱 + 受限网络 + 限制工具权限。
+- `medium`：Docker 沙箱 + 可写工作区 + 受控执行能力。
+- `low`：Native 模式（仅适用于可信主会话）。
 
-Pick profile by scenario:
+按场景选择配置：
 
 ```ts
 import { selectSecurityProfile } from 'openclaw-agent-forge';
@@ -21,27 +21,27 @@ import { selectSecurityProfile } from 'openclaw-agent-forge';
 const profile = selectSecurityProfile('public-chat');
 ```
 
-## Security Scanner
+## 安全扫描器
 
-Run scanner against code/config:
+扫描代码与配置：
 
 ```bash
 forge scan .
 forge scan ./agents/my-agent
 ```
 
-Scanner currently checks:
+当前扫描覆盖：
 
-- hardcoded secrets and tokens
-- dangerous runtime functions (`eval`, `exec`, etc.)
-- unsafe input handling patterns
-- SQL injection-like string composition
-- `SKILL.md` safety documentation gaps
-- `openclaw.plugin.json` sandbox/allowlist weaknesses
+- 硬编码密钥与 Token
+- 危险函数调用（`eval`、`exec` 等）
+- 不安全输入处理
+- SQL 注入式拼接风险
+- `SKILL.md` 安全文档缺失项
+- `openclaw.plugin.json` 沙箱与白名单风险
 
-## Plugin Configuration Hardening
+## 插件配置加固
 
-Generate secure plugin snippets:
+可通过 API 生成并校验安全片段：
 
 ```ts
 import {
@@ -55,9 +55,9 @@ const pluginConfig = generatePluginSecurityConfig(config);
 const validation = validateSecurityConfig(config);
 ```
 
-## Operational Recommendations
+## 运维建议
 
-1. Never hardcode API keys in `SOUL.md`, `AGENTS.md`, source code, or plugin config.
-2. Keep dangerous tools (`exec`, `browser`, `write`) deny-by-default.
-3. Use `forge validate --strict` in CI before merge/release.
-4. Rotate any credential immediately if scanner flags a real secret.
+1. 禁止在 `SOUL.md`、`AGENTS.md`、源码、插件配置中硬编码密钥。
+2. 危险工具（`exec`、`browser`、`write`）默认拒绝，按需放开。
+3. 在 CI 中执行 `forge validate --strict` 作为合并门禁。
+4. 一旦扫描发现真实泄露，立即轮换凭证并追溯影响范围。

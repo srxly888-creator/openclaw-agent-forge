@@ -1,6 +1,6 @@
-# Getting Started
+# 快速开始
 
-## 1. Install
+## 1. 安装
 
 ```bash
 git clone https://github.com/srxly888-creator/openclaw-agent-forge.git
@@ -9,43 +9,43 @@ npm install
 npm run build
 ```
 
-Optional global command:
+可选全局命令：
 
 ```bash
 npm link
 forge --help
 ```
 
-## 2. Create Your First Agent
+## 2. 创建第一个智能体
 
 ```bash
 forge create my-assistant --scenario private-chat --security high
 ```
 
-This creates:
+会生成以下文件：
 
 - `agents/my-assistant/SOUL.md`
 - `agents/my-assistant/AGENTS.md`
 - `agents/my-assistant/openclaw.plugin.json`
 - `agents/my-assistant/SECURITY.md`
 
-## 3. Scan for Security Issues
+## 3. 扫描安全问题
 
 ```bash
 forge scan agents/my-assistant
 ```
 
-The command writes a report to `security-scan-report.md` in the target directory.
+扫描报告会写入目标目录下的 `security-scan-report.md`。
 
-## 4. Validate Repository Quality
+## 4. 执行四层校验
 
 ```bash
 forge validate --four-layer --strict
 ```
 
-Checks include structure integrity, runtime stability, hidden risk detection, and developer experience.
+校验项包括：结构完整性、运行稳定性、隐蔽风险、开发体验。
 
-## 5. Sync With OpenClaw
+## 5. 与 OpenClaw 同步
 
 ```bash
 forge sync my-assistant --direction to-openclaw
@@ -53,9 +53,9 @@ forge sync my-assistant --direction from-openclaw
 forge sync my-assistant --watch
 ```
 
-Default OpenClaw path is `~/.openclaw`.
+默认 OpenClaw 路径：`~/.openclaw`。
 
-## 6. List Agents
+## 6. 查看智能体列表
 
 ```bash
 forge list --scope both --format table

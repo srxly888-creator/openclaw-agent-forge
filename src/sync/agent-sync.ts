@@ -1,7 +1,7 @@
 /**
- * OpenClaw Agent Forge - Agent Sync Tool
+ * OpenClaw Agent Forge - 智能体同步工具
  *
- * Implements Agent Forge <-> OpenClaw bidirectional sync.
+ * 实现 Forge 与 OpenClaw 的双向同步。
  */
 
 import * as fs from 'fs';
@@ -54,14 +54,14 @@ export class AgentSync {
     const openclawAgentPath = path.join(this.openclawPath, 'agents', agentName, 'agent');
 
     if (!fs.existsSync(forgeAgentPath)) {
-      throw new Error(`Agent "${agentName}" not found in Forge: ${forgeAgentPath}`);
+      throw new Error(`Forge 中未找到智能体 "${agentName}": ${forgeAgentPath}`);
     }
 
     fs.mkdirSync(openclawAgentPath, { recursive: true });
 
     const soulPath = path.join(forgeAgentPath, 'SOUL.md');
     if (!fs.existsSync(soulPath)) {
-      throw new Error(`SOUL.md not found for agent "${agentName}"`);
+      throw new Error(`智能体 "${agentName}" 缺少 SOUL.md`);
     }
 
     const soulContent = fs.readFileSync(soulPath, 'utf-8');
@@ -76,7 +76,7 @@ export class AgentSync {
       `${JSON.stringify(openclawConfig.auth, null, 2)}\n`,
     );
 
-    console.log(`✅ Synced "${agentName}" to OpenClaw`);
+    console.log(`✅ 已将 "${agentName}" 同步到 OpenClaw`);
   }
 
   async syncFromOpenClaw(agentName: string): Promise<void> {
@@ -84,7 +84,7 @@ export class AgentSync {
     const forgeAgentPath = path.join(this.forgePath, 'agents', agentName);
 
     if (!fs.existsSync(openclawAgentPath)) {
-      throw new Error(`Agent "${agentName}" not found in OpenClaw: ${openclawAgentPath}`);
+      throw new Error(`OpenClaw 中未找到智能体 "${agentName}": ${openclawAgentPath}`);
     }
 
     fs.mkdirSync(forgeAgentPath, { recursive: true });
@@ -93,7 +93,7 @@ export class AgentSync {
     const authPath = path.join(openclawAgentPath, 'auth-profiles.json');
 
     if (!fs.existsSync(modelsPath)) {
-      throw new Error(`models.json not found for agent "${agentName}"`);
+      throw new Error(`智能体 "${agentName}" 缺少 models.json`);
     }
 
     const models = this.parseJsonFile<{ providers: Record<string, OpenClawProviderConfig> }>(
@@ -113,7 +113,7 @@ export class AgentSync {
     fs.writeFileSync(path.join(forgeAgentPath, 'SOUL.md'), forgeConfig.soul);
     fs.writeFileSync(path.join(forgeAgentPath, 'AGENTS.md'), forgeConfig.agents);
 
-    console.log(`✅ Synced "${agentName}" from OpenClaw`);
+    console.log(`✅ 已从 OpenClaw 同步 "${agentName}" 到 Forge`);
   }
 
   async startSync(agentName: string): Promise<void> {
@@ -121,15 +121,15 @@ export class AgentSync {
     const openclawAgentPath = path.join(this.openclawPath, 'agents', agentName, 'agent');
 
     if (!fs.existsSync(forgeAgentPath)) {
-      throw new Error(`Forge agent path not found: ${forgeAgentPath}`);
+      throw new Error(`Forge 智能体路径不存在: ${forgeAgentPath}`);
     }
     if (!fs.existsSync(openclawAgentPath)) {
-      throw new Error(`OpenClaw agent path not found: ${openclawAgentPath}`);
+      throw new Error(`OpenClaw 智能体路径不存在: ${openclawAgentPath}`);
     }
 
     await this.stopSync();
 
-    console.log(`🔄 Starting sync watch for "${agentName}"`);
+    console.log(`🔄 开始监听 "${agentName}" 的同步变更`);
 
     const forgeWatcher = watch(forgeAgentPath, {
       ignored: /(^|[/\\])\../,
@@ -137,11 +137,11 @@ export class AgentSync {
       ignoreInitial: true,
     });
     forgeWatcher.on('change', async (filePath: string) => {
-      console.log(`📝 Forge changed: ${filePath}`);
+      console.log(`📝 Forge 发生变化: ${filePath}`);
       try {
         await this.syncToOpenClaw(agentName);
       } catch (error: unknown) {
-        console.error(`❌ Forge -> OpenClaw sync error: ${formatError(error)}`);
+        console.error(`❌ Forge -> OpenClaw 同步失败: ${formatError(error)}`);
       }
     });
 
@@ -151,17 +151,17 @@ export class AgentSync {
       ignoreInitial: true,
     });
     openclawWatcher.on('change', async (filePath: string) => {
-      console.log(`📝 OpenClaw changed: ${filePath}`);
+      console.log(`📝 OpenClaw 发生变化: ${filePath}`);
       try {
         await this.syncFromOpenClaw(agentName);
       } catch (error: unknown) {
-        console.error(`❌ OpenClaw -> Forge sync error: ${formatError(error)}`);
+        console.error(`❌ OpenClaw -> Forge 同步失败: ${formatError(error)}`);
       }
     });
 
     this.watchers = [forgeWatcher, openclawWatcher];
 
-    console.log('✅ Sync watchers are active');
+    console.log('✅ 同步监听器已启动');
     console.log(`   Forge: ${forgeAgentPath}`);
     console.log(`   OpenClaw: ${openclawAgentPath}`);
   }
@@ -173,7 +173,7 @@ export class AgentSync {
 
     await Promise.all(this.watchers.map((watcher) => watcher.close()));
     this.watchers = [];
-    console.log('🛑 Sync watchers stopped');
+    console.log('🛑 同步监听器已停止');
   }
 
   private convertToOpenClawConfig(soulContent: string): OpenClawAgentConfig {
@@ -230,56 +230,56 @@ export class AgentSync {
     const providers = openclawConfig.models?.providers || {};
     const providerId = Object.keys(providers)[0];
     if (!providerId) {
-      throw new Error('models.json does not contain any provider');
+      throw new Error('models.json 未包含任何 provider');
     }
 
     const provider = providers[providerId];
     if (!provider || !Array.isArray(provider.models) || provider.models.length === 0) {
-      throw new Error(`Provider "${providerId}" has no model entries`);
+      throw new Error(`Provider "${providerId}" 未包含模型配置`);
     }
 
     const model = provider.models[0];
-    const modelId = model.id || 'unknown-model';
+    const modelId = model.id || '未知模型';
     const contextWindow = model.contextWindow || 204800;
 
-    const soulContent = `# SOUL.md - Who You Are
+    const soulContent = `# SOUL.md - 你是谁
 
-_You're not a chatbot. You're becoming someone._
+_你不是一个“聊天机器人”，你是一个持续进化的专业协作者。_
 
-## Core Truths
+## 核心原则
 
-**Be genuinely helpful.** Skip filler and focus on outcomes.
+**真诚有用。** 少废话，直达结果。
 
-**Have opinions.** Offer clear recommendations with tradeoffs.
+**有判断力。** 清晰给出建议与取舍，不做无意义中立。
 
-**Be resourceful.** Try to solve with available tools before escalating.
+**先自助后求助。** 先尽力利用现有工具，再进行升级和确认。
 
-## Configuration
+## 配置
 
-- **Model**: ${modelId}
-- **Provider**: ${providerId}
-- **Context Window**: ${contextWindow}
+- **模型**: ${modelId}
+- **提供商**: ${providerId}
+- **上下文窗口**: ${contextWindow}
 
-## Boundaries
+## 边界
 
-- Keep private data private.
-- Ask before taking external or destructive actions.
-- Never send half-baked replies to user-facing channels.
+- 严格保护隐私和敏感信息。
+- 涉及外部动作或破坏性动作前先确认。
+- 不向用户侧输出半成品结论。
 `;
 
-    const agentsContent = `# AGENTS.md - Your Workspace
+    const agentsContent = `# AGENTS.md - 工作区约定
 
-## Session Startup
+## 会话启动
 
-1. Read \`SOUL.md\`
-2. Read \`USER.md\` (if present)
-3. Read recent memory notes for context
+1. 先阅读 \`SOUL.md\`
+2. 再阅读 \`USER.md\`（如存在）
+3. 回看最近的 memory 记录，补齐上下文
 
-## Configuration
+## 配置
 
-- **Model**: ${modelId}
-- **Provider**: ${providerId}
-- **API**: ${provider.api || 'unknown'}
+- **模型**: ${modelId}
+- **提供商**: ${providerId}
+- **API**: ${provider.api || '未知'}
 `;
 
     return {
@@ -323,7 +323,7 @@ _You're not a chatbot. You're becoming someone._
     try {
       return JSON.parse(content) as T;
     } catch (error: unknown) {
-      throw new Error(`Invalid ${label}: ${formatError(error)}`);
+      throw new Error(`${label} 不是有效 JSON: ${formatError(error)}`);
     }
   }
 }

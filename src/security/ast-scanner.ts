@@ -1,7 +1,7 @@
 /**
- * OpenClaw Agent Forge - Static Analysis Security Scanner
+ * OpenClaw Agent Forge - 静态安全扫描器
  *
- * Scans generated code and configuration files for common security risks.
+ * 扫描代码与配置中的常见安全风险。
  */
 
 export interface SecurityIssue {
@@ -41,42 +41,42 @@ const SECRET_RULES: SecretRule[] = [
     type: 'hardcoded-api-key',
     severity: 'critical',
     pattern: /\bsk-[a-zA-Z0-9]{20,}\b/g,
-    recommendation: 'Use environment variables or a secret manager for API keys.',
+    recommendation: '请使用环境变量或密钥管理服务存储 API Key。',
   },
   {
     name: 'Anthropic API key',
     type: 'hardcoded-api-key',
     severity: 'critical',
     pattern: /\bsk-ant-api[a-zA-Z0-9-]{20,}\b/g,
-    recommendation: 'Use environment variables or a secret manager for API keys.',
+    recommendation: '请使用环境变量或密钥管理服务存储 API Key。',
   },
   {
     name: 'Slack token',
     type: 'hardcoded-api-key',
     severity: 'critical',
     pattern: /\bxox[baprs]-[a-zA-Z0-9-]{10,}\b/g,
-    recommendation: 'Move Slack tokens out of source code immediately.',
+    recommendation: '请立即将 Slack Token 从源码中移除。',
   },
   {
     name: 'GitHub token',
     type: 'hardcoded-api-key',
     severity: 'critical',
     pattern: /\bgh[pousr]_[a-zA-Z0-9]{36}\b/g,
-    recommendation: 'Revoke and rotate exposed GitHub tokens.',
+    recommendation: '请立即吊销并轮换已暴露的 GitHub Token。',
   },
   {
     name: 'AWS access key ID',
     type: 'hardcoded-api-key',
     severity: 'critical',
     pattern: /\bAKIA[0-9A-Z]{16}\b/g,
-    recommendation: 'Store cloud credentials in environment variables or vault.',
+    recommendation: '请将云凭证存放在环境变量或密钥保险库中。',
   },
   {
     name: 'JWT token',
     type: 'hardcoded-jwt',
     severity: 'high',
     pattern: /\beyJ[a-zA-Z0-9-_=]+\.[a-zA-Z0-9-_=]+\.?[a-zA-Z0-9-_.+/=]*\b/g,
-    recommendation: 'Avoid embedding live JWTs in source code and logs.',
+    recommendation: '避免在源码或日志中写入可用 JWT。',
   },
 ];
 
@@ -95,21 +95,21 @@ const DANGEROUS_FUNCTIONS = [
 const UNSAFE_INPUT_PATTERNS = [
   {
     pattern: /process\.argv\s*\[\s*\d+\s*\]/g,
-    name: 'Direct process.argv access',
+    name: '直接访问 process.argv',
     severity: 'medium' as const,
-    recommendation: 'Validate CLI input using a schema validator (e.g. zod).',
+    recommendation: '请使用参数校验方案（如 zod）验证 CLI 输入。',
   },
   {
     pattern: /require\s*\(\s*[`'"][^`'"]+[`'"]\s*\+.*\)/g,
-    name: 'Dynamic require with user input',
+    name: '基于用户输入的动态 require',
     severity: 'high' as const,
-    recommendation: 'Avoid dynamic require; prefer static imports or strict allow-lists.',
+    recommendation: '避免动态 require，优先静态导入或严格白名单。',
   },
   {
     pattern: /\$\{[^}]*process\.env[^}]*\}/g,
-    name: 'Template literal with process.env',
+    name: '模板字符串中直接使用 process.env',
     severity: 'medium' as const,
-    recommendation: 'Validate environment values before interpolation.',
+    recommendation: '环境变量在插值前应先校验。',
   },
 ];
 
@@ -130,7 +130,7 @@ export function scanFileContent(content: string, filePath: string): ScanResult {
       issues.push({
         severity: rule.severity,
         type: rule.type,
-        message: `Detected ${rule.name}: ${maskSecret(match[0])}`,
+        message: `检测到 ${rule.name}: ${maskSecret(match[0])}`,
         location: { file: filePath, line: lineNumberAt(content, start) },
         recommendation: rule.recommendation,
       });
@@ -151,9 +151,9 @@ export function scanFileContent(content: string, filePath: string): ScanResult {
       issues.push({
         severity: 'medium',
         type: 'possible-hardcoded-secret',
-        message: `Possible hardcoded secret near credential-like context: ${maskSecret(match)}`,
+        message: `疑似硬编码敏感信息（凭证上下文）: ${maskSecret(match)}`,
         location: { file: filePath, line: index + 1 },
-        recommendation: 'Review whether this value is sensitive. If yes, move it to env/secret manager.',
+        recommendation: '请确认该值是否敏感，若敏感请迁移到环境变量或密钥管理服务。',
       });
     });
   });
@@ -164,9 +164,9 @@ export function scanFileContent(content: string, filePath: string): ScanResult {
       issues.push({
         severity: func.severity,
         type: 'dangerous-function',
-        message: `Dangerous function usage: ${func.name}`,
+        message: `检测到危险函数调用: ${func.name}`,
         location: { file: filePath, line: lineNumberAt(content, start) },
-        recommendation: 'Validate and sanitize all input. Prefer safer alternatives.',
+        recommendation: '请校验并净化所有输入，优先使用更安全替代方案。',
       });
     }
   });
@@ -190,9 +190,9 @@ export function scanFileContent(content: string, filePath: string): ScanResult {
       issues.push({
         severity: 'high',
         type: 'sql-injection-risk',
-        message: 'Possible SQL injection risk from string interpolation/concatenation.',
+        message: '检测到疑似 SQL 注入风险（字符串拼接/插值）。',
         location: { file: filePath, line: lineNumberAt(content, start) },
-        recommendation: 'Use parameterized queries or ORM methods instead of string composition.',
+        recommendation: '请使用参数化查询或 ORM，避免字符串拼接 SQL。',
       });
     }
   });
@@ -208,9 +208,9 @@ export function scanSkillFile(content: string, filePath: string): ScanResult {
     issues.push({
       severity: 'medium',
       type: 'missing-tool-documentation',
-      message: 'SKILL.md does not describe tool boundaries.',
+      message: 'SKILL.md 未描述工具边界。',
       location: { file: filePath },
-      recommendation: 'Document tool input/output, environment dependencies, and operational boundaries.',
+      recommendation: '请补充工具输入/输出、环境依赖、操作边界。',
     });
   }
 
@@ -218,9 +218,9 @@ export function scanSkillFile(content: string, filePath: string): ScanResult {
     issues.push({
       severity: 'high',
       type: 'missing-security-warning',
-      message: 'SKILL.md references exec-like capability but lacks a security warning.',
+      message: 'SKILL.md 涉及 exec 类能力，但缺少安全警告。',
       location: { file: filePath },
-      recommendation: 'Add explicit security guidance and guardrails for command execution.',
+      recommendation: '请补充明确的命令执行安全规范和防护边界。',
     });
   }
 
@@ -228,9 +228,9 @@ export function scanSkillFile(content: string, filePath: string): ScanResult {
     issues.push({
       severity: 'low',
       type: 'missing-error-handling',
-      message: 'SKILL.md does not explain error handling behavior.',
+      message: 'SKILL.md 未说明错误处理方式。',
       location: { file: filePath },
-      recommendation: 'Describe expected failure handling and user-facing recovery behavior.',
+      recommendation: '请描述失败处理流程和用户可见恢复策略。',
     });
   }
 
@@ -247,9 +247,9 @@ export function scanPluginConfig(content: string, filePath: string): ScanResult 
     issues.push({
       severity: 'high',
       type: 'invalid-json',
-      message: 'Plugin config is not valid JSON.',
+      message: '插件配置不是有效 JSON。',
       location: { file: filePath },
-      recommendation: 'Fix JSON syntax errors in openclaw.plugin.json.',
+      recommendation: '请修复 openclaw.plugin.json 的 JSON 语法。',
     });
     return buildScanResult(issues);
   }
@@ -266,9 +266,9 @@ export function scanPluginConfig(content: string, filePath: string): ScanResult 
     issues.push({
       severity: 'high',
       type: 'missing-sandbox',
-      message: 'Dangerous tools are allowed but sandbox is not configured.',
+      message: '已放行危险工具，但未配置沙箱。',
       location: { file: filePath },
-      recommendation: 'Configure sandbox isolation (Docker/native restrictions) before enabling dangerous tools.',
+      recommendation: '启用危险工具前，请先配置沙箱隔离（Docker 或原生限制）。',
     });
   }
 
@@ -276,9 +276,9 @@ export function scanPluginConfig(content: string, filePath: string): ScanResult 
     issues.push({
       severity: 'medium',
       type: 'overly-broad-tool-access',
-      message: 'Tools allow-list is "*" without deny rules.',
+      message: '工具允许列表为 "*"，且未配置 deny 规则。',
       location: { file: filePath },
-      recommendation: 'Use principle of least privilege with explicit allow/deny tool lists.',
+      recommendation: '请按最小权限原则配置明确的 allow/deny 工具列表。',
     });
   }
 
@@ -290,9 +290,9 @@ export function scanPluginConfig(content: string, filePath: string): ScanResult 
     issues.push({
       severity: 'medium',
       type: 'missing-agent-whitelist',
-      message: 'No agent whitelist configured.',
+      message: '未配置智能体白名单。',
       location: { file: filePath },
-      recommendation: 'Configure agents.allowed to scope plugin usage to approved agents.',
+      recommendation: '请配置 agents.allowed，限制插件仅被授权智能体调用。',
     });
   }
 
@@ -300,9 +300,9 @@ export function scanPluginConfig(content: string, filePath: string): ScanResult 
     issues.push({
       severity: 'low',
       type: 'deprecated-api',
-      message: 'Legacy "hooks" field detected without "providers".',
+      message: '检测到旧版 hooks 字段，且未使用 providers。',
       location: { file: filePath },
-      recommendation: 'Migrate to modern provider registration patterns.',
+      recommendation: '建议迁移到新版 provider 注册模式。',
     });
   }
 
@@ -322,22 +322,22 @@ export function generateScanReport(results: ScanResult[], projectName: string): 
 
   const allSafe = results.every((result) => result.safe);
 
-  let report = `# Security Scan Report - ${projectName}
+  let report = `# 安全扫描报告 - ${projectName}
 
-## Overall
+## 总体结论
 
-${allSafe ? '✅ PASS - No high/critical issues detected.' : '❌ FAIL - High or critical issues detected.'}
+${allSafe ? '✅ 通过：未发现 high/critical 问题。' : '❌ 未通过：发现 high 或 critical 问题。'}
 
-## Summary
+## 问题统计
 
-| Severity | Count |
-|----------|-------|
-| 🔴 Critical | ${totalIssues.critical} |
-| 🟠 High | ${totalIssues.high} |
-| 🟡 Medium | ${totalIssues.medium} |
-| 🟢 Low | ${totalIssues.low} |
+| 严重级别 | 数量 |
+|----------|------|
+| 🔴 严重 (Critical) | ${totalIssues.critical} |
+| 🟠 高危 (High) | ${totalIssues.high} |
+| 🟡 中危 (Medium) | ${totalIssues.medium} |
+| 🟢 低危 (Low) | ${totalIssues.low} |
 
-## Findings
+## 问题明细
 
 `;
 
@@ -359,20 +359,20 @@ ${allSafe ? '✅ PASS - No high/critical issues detected.' : '❌ FAIL - High or
 
       report += `### ${severityEmoji[issue.severity]} ${issue.type}
 
-- **Location**: \`${location}\`
-- **Severity**: ${issue.severity.toUpperCase()}
-- **Message**: ${issue.message}
-- **Recommendation**: ${issue.recommendation}
+- **位置**: \`${location}\`
+- **严重级别**: ${issue.severity.toUpperCase()}
+- **问题描述**: ${issue.message}
+- **修复建议**: ${issue.recommendation}
 
 `;
     });
   });
 
   if (!hasFinding) {
-    report += '_No findings._\n\n';
+    report += '_未发现问题。_\n\n';
   }
 
-  report += `## Generated At
+  report += `## 生成时间
 
 ${new Date().toISOString()}
 `;
