@@ -1,468 +1,912 @@
 #!/usr/bin/env node
 /**
  * OpenClaw Agent Forge - CLI Tool
- *
- * 用法:
- *   forge create <agent-name> --template <template>
- *   forge swarm create <swarm-name> --agents <agent1,agent2>
- *   forge validate --four-layer
- *   forge deploy --env vps
- *   forge sync <agent-name> --direction <to-openclaw|from-openclaw|bidirectional>
  */
 
 import { Command } from 'commander';
-import { selectSecurityProfile, generateSecurityDocs, validateSecurityConfig } from './security/sandbox-config';
-import { scanFileContent, scanSkillFile, scanPluginConfig, generateScanReport } from './security/ast-scanner';
-import { AgentSync } from '../sync/agent-sync';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  SECURITY_PROFILES,
+  generatePluginSecurityConfig,
+  generateSecurityDocs,
+  selectSecurityProfile,
+  validateSecurityConfig,
+  type SandboxConfig,
+} from '../security/sandbox-config';
+import {
+  generateScanReport,
+  scanFileContent,
+  scanPluginConfig,
+  scanSkillFile,
+  type ScanResult,
+} from '../security/ast-scanner';
+import { AgentSync } from '../sync/agent-sync';
+
+type SecurityLevel = keyof typeof SECURITY_PROFILES;
+type Scenario = 'public-chat' | 'private-chat' | 'main-session' | 'subagent';
+type SyncDirection = 'to-openclaw' | 'from-openclaw' | 'bidirectional';
+type ListFormat = 'json' | 'table';
+type ListScope = 'forge' | 'openclaw' | 'both';
+
+interface CheckResult {
+  pass: boolean;
+  issues: string[];
+  warnings: string[];
+}
+
+interface ForgeAgentInfo {
+  source: 'forge';
+  id: string;
+  model: string;
+  group?: string;
+}
+
+interface OpenClawAgentInfo {
+  source: 'openclaw';
+  id: string;
+  model: string;
+  provider: string;
+}
+
+const SCENARIOS: Scenario[] = ['public-chat', 'private-chat', 'main-session', 'subagent'];
+const SECURITY_LEVELS: SecurityLevel[] = ['maximum', 'high', 'medium', 'low'];
+const SYNC_DIRECTIONS: SyncDirection[] = ['to-openclaw', 'from-openclaw', 'bidirectional'];
+const LIST_FORMATS: ListFormat[] = ['json', 'table'];
+const LIST_SCOPES: ListScope[] = ['forge', 'openclaw', 'both'];
+const IGNORED_DIRECTORIES = new Set([
+  '.git',
+  '.idea',
+  '.vscode',
+  '.openclaw',
+  '.turbo',
+  'coverage',
+  'dist',
+  'node_modules',
+]);
 
 const program = new Command();
 
 program
   .name('forge')
-  .description('OpenClaw Agent Forge - 安全的智能体锻造工具')
-  .version('2.0.0');
+  .description('OpenClaw Agent Forge - security-first AI agent toolkit')
+  .version('2.1.0');
 
-/**
- * 创建新智能体
- */
 program
   .command('create <agent-name>')
-  .description('创建新的智能体')
-  .option('-t, --template <template>', '使用模板', 'basic')
-  .option('-s, --security <level>', '安全级别 (maximum|high|medium|low)', 'high')
-  .option('--scenario <scenario>', '使用场景 (public-chat|private-chat|main-session|subagent)', 'private-chat')
-  .action((agentName, options) => {
-    console.log(`🔨 创建智能体: ${agentName}`);
-    console.log(`📋 模板: ${options.template}`);
-    console.log(`🔒 安全级别: ${options.security}`);
-    console.log(`🎯 使用场景: ${options.scenario}`);
+  .description('Create a new agent scaffold')
+  .option('-t, --template <template>', 'Template name/path under agents/', 'basic')
+  .option(
+    '-s, --security <level>',
+    `Security level (${SECURITY_LEVELS.join('|')})`,
+    'high',
+  )
+  .option(
+    '--scenario <scenario>',
+    `Scenario (${SCENARIOS.join('|')})`,
+    'private-chat',
+  )
+  .action((agentName: string, options: { template: string; security: string; scenario: string }) => {
+    try {
+      ensureValidAgentName(agentName);
+      const scenario = toScenario(options.scenario);
+      const level = toSecurityLevel(options.security);
 
-    // 选择安全配置
-    const securityConfig = selectSecurityProfile(options.scenario as any);
-    console.log('\n✅ 安全配置已生成:');
-    console.log(JSON.stringify(securityConfig, null, 2));
+      const workspaceRoot = process.cwd();
+      const agentsRoot = path.join(workspaceRoot, 'agents');
+      const agentRoot = path.join(agentsRoot, agentName);
 
-    // 生成安全文档
-    const securityDocs = generateSecurityDocs(securityConfig);
-    console.log('\n📄 安全文档:');
-    console.log(securityDocs);
+      if (fs.existsSync(agentRoot)) {
+        throw new Error(`Agent "${agentName}" already exists at ${agentRoot}`);
+      }
 
-    // TODO: 创建智能体目录结构
-    console.log(`\n📁 创建目录结构...`);
-    console.log(`   - ${agentName}/`);
-    console.log(`   - ${agentName}/SOUL.md`);
-    console.log(`   - ${agentName}/AGENTS.md`);
-    console.log(`   - ${agentName}/skills/`);
-    console.log(`   - ${agentName}/openclaw.plugin.json`);
+      const securityConfig = buildSecurityConfig(scenario, level);
+      const validation = validateSecurityConfig(securityConfig);
+      const templateSoulPath = resolveTemplateSoulPath(agentsRoot, options.template);
+
+      fs.mkdirSync(path.join(agentRoot, 'skills'), { recursive: true });
+      fs.writeFileSync(
+        path.join(agentRoot, 'SOUL.md'),
+        buildSoulContent(agentName, scenario, level, templateSoulPath),
+      );
+      fs.writeFileSync(path.join(agentRoot, 'AGENTS.md'), buildAgentsContent(agentName, scenario));
+      fs.writeFileSync(
+        path.join(agentRoot, 'openclaw.plugin.json'),
+        `${JSON.stringify(generatePluginSecurityConfig(securityConfig), null, 2)}\n`,
+      );
+      fs.writeFileSync(path.join(agentRoot, 'SECURITY.md'), generateSecurityDocs(securityConfig));
+
+      console.log(`✅ Created agent: ${agentName}`);
+      console.log(`📁 Path: ${agentRoot}`);
+      console.log(`🧩 Template: ${templateSoulPath ? path.relative(workspaceRoot, templateSoulPath) : 'basic'}`);
+      console.log(`🔒 Security: ${level}`);
+      console.log(`🎯 Scenario: ${scenario}`);
+
+      if (validation.warnings.length > 0) {
+        console.log('\n⚠️ Security warnings:');
+        validation.warnings.forEach((warning) => console.log(`  - ${warning}`));
+      }
+    } catch (error: unknown) {
+      failWithError('Failed to create agent', error);
+    }
   });
 
-/**
- * 创建智能体集群
- */
 program
   .command('swarm create <swarm-name>')
-  .description('创建智能体集群')
-  .option('-a, --agents <agents>', '智能体列表（逗号分隔）', 'researcher,writer,publisher')
-  .option('-c, --config <config>', '集群配置文件')
-  .action((swarmName, options) => {
-    const agents = options.agents.split(',');
-    console.log(`🤖 创建智能体集群: ${swarmName}`);
-    console.log(`👥 智能体列表: ${agents.join(', ')}`);
-
-    // TODO: 生成集群配置
-    console.log('\n📁 生成集群配置...');
-    console.log(`   - .agents/`);
-    agents.forEach(agent => {
-      console.log(`   - .agents/${agent}/`);
-      console.log(`   - .agents/${agent}/agent.md`);
-      console.log(`   - .agents/${agent}/soul.md`);
-    });
-    console.log(`   - swarm.json`);
-    console.log(`   - jobs.json (Cron 心跳)`);
-  });
-
-/**
- * 安全扫描
- */
-program
-  .command('scan [path]')
-  .description('扫描代码和配置的安全问题')
-  .option('--fix', '自动修复可修复的问题')
-  .action((targetPath = '.', options) => {
-    console.log('🔍 开始安全扫描...\n');
-
-    const results: any[] = [];
-
-    // 扫描 TypeScript/JavaScript 文件
-    const codeFiles = findFiles(targetPath, /\.(ts|js)$/);
-    codeFiles.forEach(file => {
-      const content = fs.readFileSync(file, 'utf-8');
-      const result = scanFileContent(content, file);
-      results.push(result);
-
-      if (result.issues.length > 0) {
-        console.log(`📄 ${file}:`);
-        result.issues.forEach(issue => {
-          const emoji = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[issue.severity];
-          console.log(`  ${emoji} Line ${issue.location.line}: ${issue.message}`);
-        });
+  .description('Create a multi-agent swarm scaffold')
+  .option('-a, --agents <agents>', 'Comma-separated agents', 'researcher,writer,publisher')
+  .action((swarmName: string, options: { agents: string }) => {
+    try {
+      ensureValidAgentName(swarmName);
+      const agents = parseAgentList(options.agents);
+      if (agents.length === 0) {
+        throw new Error('No valid agent names were provided');
       }
-    });
 
-    // 扫描 SKILL.md 文件
-    const skillFiles = findFiles(targetPath, /SKILL\.md$/);
-    skillFiles.forEach(file => {
-      const content = fs.readFileSync(file, 'utf-8');
-      const result = scanSkillFile(content, file);
-      results.push(result);
-
-      if (result.issues.length > 0) {
-        console.log(`\n📄 ${file}:`);
-        result.issues.forEach(issue => {
-          const emoji = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[issue.severity];
-          console.log(`  ${emoji} ${issue.message}`);
-        });
+      const swarmRoot = path.join(process.cwd(), 'swarms', swarmName);
+      if (fs.existsSync(swarmRoot)) {
+        throw new Error(`Swarm "${swarmName}" already exists at ${swarmRoot}`);
       }
-    });
 
-    // 扫描 openclaw.plugin.json 文件
-    const pluginFiles = findFiles(targetPath, /openclaw\.plugin\.json$/);
-    pluginFiles.forEach(file => {
-      const content = fs.readFileSync(file, 'utf-8');
-      const result = scanPluginConfig(content, file);
-      results.push(result);
+      agents.forEach((agent) => ensureValidAgentName(agent));
 
-      if (result.issues.length > 0) {
-        console.log(`\n📄 ${file}:`);
-        result.issues.forEach(issue => {
-          const emoji = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[issue.severity];
-          console.log(`  ${emoji} ${issue.message}`);
-        });
-      }
-    });
+      fs.mkdirSync(path.join(swarmRoot, 'agents'), { recursive: true });
+      agents.forEach((agent) => {
+        const agentRoot = path.join(swarmRoot, 'agents', agent);
+        fs.mkdirSync(agentRoot, { recursive: true });
+        fs.writeFileSync(path.join(agentRoot, 'agent.md'), buildSwarmAgentGuide(agent));
+        fs.writeFileSync(path.join(agentRoot, 'soul.md'), buildSwarmAgentSoul(agent));
+      });
 
-    // 生成报告
-    const report = generateScanReport(results, path.basename(targetPath));
-    const reportPath = path.join(targetPath, 'security-scan-report.md');
-    fs.writeFileSync(reportPath, report);
-    console.log(`\n📊 扫描报告已生成: ${reportPath}`);
+      const swarmConfig = {
+        name: swarmName,
+        createdAt: new Date().toISOString(),
+        agents,
+        coordination: {
+          mode: 'cooperative',
+          heartbeatCron: '*/5 * * * *',
+        },
+      };
+      fs.writeFileSync(path.join(swarmRoot, 'swarm.json'), `${JSON.stringify(swarmConfig, null, 2)}\n`);
 
-    const totalIssues = results.reduce((acc, r) => ({
-      critical: acc.critical + r.summary.critical,
-      high: acc.high + r.summary.high,
-      medium: acc.medium + r.summary.medium,
-      low: acc.low + r.summary.low,
-    }), { critical: 0, high: 0, medium: 0, low: 0 });
+      const jobs = agents.map((agent) => ({
+        agent,
+        schedule: '*/5 * * * *',
+        task: `heartbeat-${agent}`,
+      }));
+      fs.writeFileSync(path.join(swarmRoot, 'jobs.json'), `${JSON.stringify(jobs, null, 2)}\n`);
 
-    console.log(`\n✅ 扫描完成!`);
-    console.log(`   🔴 Critical: ${totalIssues.critical}`);
-    console.log(`   🟠 High: ${totalIssues.high}`);
-    console.log(`   🟡 Medium: ${totalIssues.medium}`);
-    console.log(`   🟢 Low: ${totalIssues.low}`);
-
-    if (totalIssues.critical > 0 || totalIssues.high > 0) {
-      console.log(`\n❌ 发现高危问题，请修复后再部署`);
-      process.exit(1);
+      console.log(`✅ Created swarm: ${swarmName}`);
+      console.log(`📁 Path: ${swarmRoot}`);
+      console.log(`👥 Agents: ${agents.join(', ')}`);
+    } catch (error: unknown) {
+      failWithError('Failed to create swarm', error);
     }
   });
 
-/**
- * 四层标准验证
- */
+program
+  .command('scan [target-path]')
+  .description('Scan source and config files for security issues')
+  .option('--fix', 'Auto-fix supported issues (currently not implemented)')
+  .action((targetPath: string = '.', options: { fix?: boolean }) => {
+    try {
+      const absoluteTarget = path.resolve(targetPath);
+      if (!fs.existsSync(absoluteTarget)) {
+        throw new Error(`Target path does not exist: ${absoluteTarget}`);
+      }
+
+      console.log(`🔍 Scanning: ${absoluteTarget}\n`);
+
+      const results: ScanResult[] = [];
+
+      const codeFiles = findFiles(absoluteTarget, /\.(ts|js|mjs|cjs)$/);
+      codeFiles.forEach((filePath) => {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const result = scanFileContent(content, filePath);
+        results.push(result);
+        printScanIssues(filePath, result);
+      });
+
+      const skillFiles = findFiles(absoluteTarget, /^SKILL\.md$/);
+      skillFiles.forEach((filePath) => {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const result = scanSkillFile(content, filePath);
+        results.push(result);
+        printScanIssues(filePath, result);
+      });
+
+      const pluginFiles = findFiles(absoluteTarget, /^openclaw\.plugin\.json$/);
+      pluginFiles.forEach((filePath) => {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const result = scanPluginConfig(content, filePath);
+        results.push(result);
+        printScanIssues(filePath, result);
+      });
+
+      const reportPath = path.join(absoluteTarget, 'security-scan-report.md');
+      fs.writeFileSync(
+        reportPath,
+        generateScanReport(results, path.basename(absoluteTarget)),
+      );
+
+      const summary = summarizeIssues(results);
+
+      console.log(`\n📊 Report: ${reportPath}`);
+      console.log(`🔴 Critical: ${summary.critical}`);
+      console.log(`🟠 High: ${summary.high}`);
+      console.log(`🟡 Medium: ${summary.medium}`);
+      console.log(`🟢 Low: ${summary.low}`);
+
+      if (options.fix) {
+        console.log('\nℹ️ --fix is reserved for future release; no auto-fix was applied.');
+      }
+
+      if (summary.critical > 0 || summary.high > 0) {
+        process.exitCode = 1;
+      }
+    } catch (error: unknown) {
+      failWithError('Scan failed', error);
+    }
+  });
+
 program
   .command('validate')
-  .description('验证是否符合四层标准')
-  .option('--four-layer', '使用四层标准验证')
-  .option('--strict', '严格模式（不允许任何警告）')
-  .action((options) => {
-    console.log('📋 开始四层标准验证...\n');
-
-    const checks = [
-      {
-        name: '1. 规范清晰度与结构完整性',
-        check: () => validateStructureIntegrity()
-      },
-      {
-        name: '2. 运行稳定性',
-        check: () => validateStability()
-      },
-      {
-        name: '3. 零隐蔽风险',
-        check: () => validateNoHiddenRisks()
-      },
-      {
-        name: '4. 低遗憾体验',
-        check: () => validateUserExperience()
-      }
+  .description('Validate repository against OpenClaw four-layer quality checks')
+  .option('--four-layer', 'Run four-layer checks (default behavior)', true)
+  .option('--strict', 'Fail if warnings exist')
+  .action((options: { strict?: boolean }) => {
+    const checks: Array<{ name: string; run: () => CheckResult }> = [
+      { name: '1) Structure integrity', run: validateStructureIntegrity },
+      { name: '2) Runtime stability', run: validateStability },
+      { name: '3) No hidden risks', run: validateNoHiddenRisks },
+      { name: '4) Developer experience', run: validateUserExperience },
     ];
 
-    const results: any[] = [];
-    checks.forEach(({ name, check }) => {
-      console.log(`检查: ${name}`);
-      const result = check();
-      results.push(result);
+    let hasError = false;
+    let hasWarning = false;
 
-      if (result.pass) {
-        console.log(`  ✅ 通过\n`);
-      } else {
-        console.log(`  ❌ 失败`);
-        result.issues.forEach((issue: string) => {
-          console.log(`     - ${issue}`);
-        });
-        console.log();
+    checks.forEach((check) => {
+      const result = check.run();
+      const passLabel = result.pass ? '✅ PASS' : '❌ FAIL';
+      console.log(`${passLabel} ${check.name}`);
+
+      result.issues.forEach((issue) => console.log(`  - ${issue}`));
+      result.warnings.forEach((warning) => console.log(`  ⚠️ ${warning}`));
+
+      if (!result.pass) {
+        hasError = true;
       }
+      if (result.warnings.length > 0) {
+        hasWarning = true;
+      }
+
+      console.log();
     });
 
-    const allPassed = results.every(r => r.pass);
-    if (allPassed) {
-      console.log('🎉 所有检查通过！符合四层标准');
-    } else {
-      console.log('❌ 存在不符合标准的项，请修复');
-      process.exit(1);
+    if (hasError || (options.strict && hasWarning)) {
+      process.exitCode = 1;
+      console.log('❌ Validation did not pass.');
+      return;
     }
+
+    console.log('🎉 Validation passed.');
   });
 
-/**
- * 同步 Agent 到 OpenClaw
- */
 program
   .command('sync <agent-name>')
-  .description('同步 Agent 与 OpenClaw')
-  .option('-d, --direction <direction>', '同步方向 (to-openclaw|from-openclaw|bidirectional)', 'bidirectional')
-  .option('-w, --watch', '启动文件监听，实时同步', false)
-  .action(async (agentName, options) => {
-    console.log(`🔄 同步 Agent: ${agentName}`);
-    console.log(`📍 方向: ${options.direction}`);
-
-    const forgePath = process.cwd();
-    const sync = new AgentSync(forgePath);
-
+  .description('Sync agent config with OpenClaw')
+  .option(
+    '-d, --direction <direction>',
+    `Sync direction (${SYNC_DIRECTIONS.join('|')})`,
+    'bidirectional',
+  )
+  .option('-w, --watch', 'Start file watchers for continuous sync', false)
+  .action(async (agentName: string, options: { direction: string; watch: boolean }) => {
     try {
-      if (options.direction === 'to-openclaw') {
+      ensureValidAgentName(agentName);
+      const direction = toSyncDirection(options.direction);
+      const sync = new AgentSync(process.cwd());
+
+      if (direction === 'to-openclaw') {
         await sync.syncToOpenClaw(agentName);
-      } else if (options.direction === 'from-openclaw') {
+      } else if (direction === 'from-openclaw') {
         await sync.syncFromOpenClaw(agentName);
       } else {
-        // 双向同步
         await sync.syncToOpenClaw(agentName);
         await sync.syncFromOpenClaw(agentName);
       }
 
       if (options.watch) {
-        console.log('\n🔄 启动实时同步监听...');
+        console.log('👀 Watch mode enabled. Press Ctrl+C to stop.');
         await sync.startSync(agentName);
       }
-    } catch (error: any) {
-      console.error(`❌ 同步失败: ${error.message}`);
-      process.exit(1);
+    } catch (error: unknown) {
+      failWithError('Sync failed', error);
     }
   });
 
-/**
- * 列出所有 Agent
- */
 program
   .command('list')
-  .description('列出所有 Agent')
-  .option('-f, --format <format>', '输出格式 (json|table)', 'table')
-  .action((options) => {
-    const agentsDir = path.join(process.cwd(), 'agents');
-    
-    if (!fs.existsSync(agentsDir)) {
-      console.log('❌ 未找到 agents 目录');
-      return;
-    }
-
-    const agents = fs.readdirSync(agentsDir).filter(dir => {
-      const agentPath = path.join(agentsDir, dir);
-      return fs.statSync(agentPath).isDirectory();
-    });
-
-    if (agents.length === 0) {
-      console.log('❌ 未找到任何 Agent');
-      return;
-    }
-
-    if (options.format === 'json') {
-      console.log(JSON.stringify(agents, null, 2));
-    } else {
-      console.log('\n📋 Agent 列表:\n');
-      agents.forEach((agent, index) => {
-        const agentPath = path.join(agentsDir, agent);
-        const soulPath = path.join(agentPath, 'SOUL.md');
-        
-        if (fs.existsSync(soulPath)) {
-          const soulContent = fs.readFileSync(soulPath, 'utf-8');
-          const modelMatch = soulContent.match(/模型[：:]\s*(.+)/);
-          const model = modelMatch ? modelMatch[1].trim() : '未知';
-          
-          console.log(`${index + 1}. ${agent}`);
-          console.log(`   模型: ${model}`);
-        } else {
-          console.log(`${index + 1}. ${agent} (无 SOUL.md)`);
-        }
-      });
-    }
-  });
-
-// 解析命令行参数
-program.parse(process.argv);
-
-/**
- * 辅助函数：查找文件
- */
-function findFiles(dir: string, pattern: RegExp): string[] {
-  const files: string[] = [];
-
-  function traverse(currentDir: string) {
-    const items = fs.readdirSync(currentDir);
-    items.forEach(item => {
-      const fullPath = path.join(currentDir, item);
-      const stat = fs.statSync(fullPath);
-
-      if (stat.isDirectory()) {
-        if (!item.startsWith('.') && item !== 'node_modules') {
-          traverse(fullPath);
-        }
-      } else if (pattern.test(item)) {
-        files.push(fullPath);
-      }
-    });
-  }
-
-  traverse(dir);
-  return files;
-}
-
-/**
- * 四层标准验证函数
- */
-function validateStructureIntegrity(): { pass: boolean; issues: string[] } {
-  const issues: string[] = [];
-
-  // TODO: 实现实际检查逻辑
-  if (!fs.existsSync('SKILL.md')) {
-    issues.push('缺少 SKILL.md 文件');
-  }
-
-  if (!fs.existsSync('README.md')) {
-    issues.push('缺少 README.md 文件');
-  }
-
-  return { pass: issues.length === 0, issues };
-}
-
-function validateStability(): { pass: boolean; issues: string[] } {
-  const issues: string[] = [];
-
-  // TODO: 检查异常处理
-  // TODO: 检查错误消息质量
-
-  return { pass: issues.length === 0, issues };
-}
-
-function validateNoHiddenRisks(): { pass: boolean; issues: string[] } {
-  const issues: string[] = [];
-
-  // TODO: 检查网络外发请求
-  // TODO: 检查数据收集行为
-
-  return { pass: issues.length === 0, issues };
-}
-
-function validateUserExperience(): { pass: boolean; issues: string[] } {
-  const issues: string[] = [];
-
-  // TODO: 检查文档质量
-  // TODO: 检查示例代码
-
-  return { pass: issues.length === 0, issues };
-}
-
-/**
- * 同步 Agent 到 OpenClaw
- */
-program
-  .command('sync <agent-name>')
-  .description('同步 Agent 与 OpenClaw')
-  .option('-d, --direction <direction>', '同步方向 (to-openclaw|from-openclaw|bidirectional)', 'bidirectional')
-  .option('-w, --watch', '启动文件监听，实时同步', false)
-  .action(async (agentName, options) => {
-    console.log(`🔄 同步 Agent: ${agentName}`);
-    console.log(`📍 方向: ${options.direction}`);
-    console.log(`👁️  监听: ${options.watch ? '是' : '否'}`);
-
-    const forgePath = process.cwd();
-    const sync = new AgentSync(forgePath);
-
+  .description('List agents from Forge and/or OpenClaw')
+  .option('-f, --format <format>', `Output format (${LIST_FORMATS.join('|')})`, 'table')
+  .option('--scope <scope>', `Data scope (${LIST_SCOPES.join('|')})`, 'both')
+  .action((options: { format: string; scope: string }) => {
     try {
-      if (options.direction === 'to-openclaw') {
-        await sync.syncToOpenClaw(agentName);
-      } else if (options.direction === 'from-openclaw') {
-        await sync.syncFromOpenClaw(agentName);
-      } else {
-        // 双向同步
-        await sync.syncToOpenClaw(agentName);
-        await sync.syncFromOpenClaw(agentName);
+      const format = toListFormat(options.format);
+      const scope = toListScope(options.scope);
+
+      const forgeAgents = scope === 'openclaw' ? [] : listForgeAgents(process.cwd());
+      const openclawAgents = scope === 'forge' ? [] : listOpenClawAgents();
+
+      if (format === 'json') {
+        console.log(
+          JSON.stringify(
+            {
+              forge: forgeAgents,
+              openclaw: openclawAgents,
+            },
+            null,
+            2,
+          ),
+        );
+        return;
       }
 
-      if (options.watch) {
-        console.log('\n👀 启动实时监听...');
-        await sync.startSync(agentName);
-        console.log('按 Ctrl+C 停止监听');
+      if (scope !== 'openclaw') {
+        console.log('\n📦 Forge Agents');
+        if (forgeAgents.length === 0) {
+          console.log('  (none)');
+        }
+        forgeAgents.forEach((agent, index) => {
+          const group = agent.group ? ` [${agent.group}]` : '';
+          console.log(`  ${index + 1}. ${agent.id}${group} - model: ${agent.model}`);
+        });
       }
-    } catch (error: any) {
-      console.error(`❌ 同步失败: ${error.message}`);
-      process.exit(1);
+
+      if (scope !== 'forge') {
+        console.log('\n🦞 OpenClaw Agents');
+        if (openclawAgents.length === 0) {
+          console.log('  (none)');
+        }
+        openclawAgents.forEach((agent, index) => {
+          console.log(`  ${index + 1}. ${agent.id} - ${agent.provider}/${agent.model}`);
+        });
+      }
+    } catch (error: unknown) {
+      failWithError('List failed', error);
     }
   });
 
-/**
- * 列出所有 Agent
- */
-program
-  .command('list')
-  .description('列出所有 Agent')
-  .option('--forge', '只显示 Forge Agent')
-  .option('--openclaw', '只显示 OpenClaw Agent')
-  .action((options) => {
-    const forgePath = path.join(process.cwd(), 'agents');
-    const openclawPath = path.join(process.env.HOME || '', '.openclaw', 'agents');
-
-    if (!options.openclaw) {
-      console.log('\n📦 Forge Agents:');
-      if (fs.existsSync(forgePath)) {
-        const forgeAgents = fs.readdirSync(forgePath).filter(f => 
-          fs.statSync(path.join(forgePath, f)).isDirectory()
-        );
-        forgeAgents.forEach(agent => {
-          const soulPath = path.join(forgePath, agent, 'SOUL.md');
-          const hasSoul = fs.existsSync(soulPath);
-          console.log(`  ${hasSoul ? '✅' : '⚠️'} ${agent}`);
-        });
-      } else {
-        console.log('  无');
-      }
-    }
-
-    if (!options.forge) {
-      console.log('\n🦞 OpenClaw Agents:');
-      if (fs.existsSync(openclawPath)) {
-        const openclawAgents = fs.readdirSync(openclawPath).filter(f => 
-          fs.statSync(path.join(openclawPath, f)).isDirectory()
-        );
-        openclawAgents.forEach(agent => {
-          const modelsPath = path.join(openclawPath, agent, 'agent', 'models.json');
-          const hasModels = fs.existsSync(modelsPath);
-          console.log(`  ${hasModels ? '✅' : '⚠️'} ${agent}`);
-        });
-      } else {
-        console.log('  无');
-      }
-    }
-  });
-
-// 解析命令行参数
 program.parse(process.argv);
+
+function ensureValidAgentName(name: string): void {
+  const validName = /^[a-zA-Z0-9][a-zA-Z0-9-_]*$/;
+  if (!validName.test(name)) {
+    throw new Error(`Invalid name "${name}". Use letters, numbers, "-" or "_" only.`);
+  }
+}
+
+function toScenario(value: string): Scenario {
+  if (!SCENARIOS.includes(value as Scenario)) {
+    throw new Error(`Invalid scenario "${value}". Allowed: ${SCENARIOS.join(', ')}`);
+  }
+  return value as Scenario;
+}
+
+function toSecurityLevel(value: string): SecurityLevel {
+  if (!SECURITY_LEVELS.includes(value as SecurityLevel)) {
+    throw new Error(`Invalid security level "${value}". Allowed: ${SECURITY_LEVELS.join(', ')}`);
+  }
+  return value as SecurityLevel;
+}
+
+function toSyncDirection(value: string): SyncDirection {
+  if (!SYNC_DIRECTIONS.includes(value as SyncDirection)) {
+    throw new Error(`Invalid direction "${value}". Allowed: ${SYNC_DIRECTIONS.join(', ')}`);
+  }
+  return value as SyncDirection;
+}
+
+function toListFormat(value: string): ListFormat {
+  if (!LIST_FORMATS.includes(value as ListFormat)) {
+    throw new Error(`Invalid format "${value}". Allowed: ${LIST_FORMATS.join(', ')}`);
+  }
+  return value as ListFormat;
+}
+
+function toListScope(value: string): ListScope {
+  if (!LIST_SCOPES.includes(value as ListScope)) {
+    throw new Error(`Invalid scope "${value}". Allowed: ${LIST_SCOPES.join(', ')}`);
+  }
+  return value as ListScope;
+}
+
+function parseAgentList(input: string): string[] {
+  return [...new Set(input.split(',').map((value) => value.trim()).filter(Boolean))];
+}
+
+function buildSecurityConfig(scenario: Scenario, level: SecurityLevel): SandboxConfig {
+  const scenarioConfig = selectSecurityProfile(scenario);
+  const levelConfig = SECURITY_PROFILES[level].config;
+  return {
+    ...scenarioConfig,
+    ...levelConfig,
+    allowedTools: [...levelConfig.allowedTools],
+    deniedTools: [...levelConfig.deniedTools],
+    allowedAgents: levelConfig.allowedAgents ? [...levelConfig.allowedAgents] : undefined,
+  };
+}
+
+function resolveTemplateSoulPath(agentsRoot: string, template: string): string | undefined {
+  if (!template || template === 'basic') {
+    return undefined;
+  }
+
+  const normalized = template.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const directCandidate = path.join(agentsRoot, normalized, 'SOUL.md');
+  if (fs.existsSync(directCandidate)) {
+    return directCandidate;
+  }
+
+  const allSoulFiles = findFiles(agentsRoot, /^SOUL\.md$/);
+  const byName = allSoulFiles.find((filePath) => path.basename(path.dirname(filePath)) === normalized);
+  return byName;
+}
+
+function buildSoulContent(
+  agentName: string,
+  scenario: Scenario,
+  level: SecurityLevel,
+  templateSoulPath?: string,
+): string {
+  if (templateSoulPath) {
+    const template = fs.readFileSync(templateSoulPath, 'utf-8').trimEnd();
+    return `${template}\n`;
+  }
+
+  return `# ${agentName}
+
+## Role
+Define this agent's primary responsibility in one sentence.
+
+## Core Capabilities
+1. Capability 1
+2. Capability 2
+3. Capability 3
+
+## Workflow
+1. Intake request
+2. Plan with constraints
+3. Execute and verify
+4. Summarize outcomes
+
+## Security Envelope
+- Scenario: ${scenario}
+- Security level: ${level}
+- Principle: least privilege by default
+
+## Boundaries
+- Never expose secrets.
+- Ask for confirmation before destructive actions.
+- Keep actions auditable and reversible.
+`;
+}
+
+function buildAgentsContent(agentName: string, scenario: Scenario): string {
+  return `# AGENTS.md - ${agentName}
+
+## Startup Checklist
+1. Read SOUL.md
+2. Read USER.md (if available)
+3. Read today's and yesterday's memory notes
+
+## Scenario
+- ${scenario}
+
+## Operating Rules
+- Keep responses concise and actionable.
+- Explain tradeoffs clearly before high-risk actions.
+- Prefer reproducible commands and explicit outputs.
+`;
+}
+
+function buildSwarmAgentGuide(agentName: string): string {
+  return `# ${agentName} - agent.md
+
+## Responsibility
+Describe what this role owns in the swarm.
+
+## Inputs
+- Shared task context
+- Outputs from upstream agents
+
+## Outputs
+- Structured result for downstream agents
+`;
+}
+
+function buildSwarmAgentSoul(agentName: string): string {
+  return `# ${agentName} - soul.md
+
+## Personality
+Calm, precise, and collaborative.
+
+## Mission
+Contribute specialized output that improves overall swarm quality.
+`;
+}
+
+function summarizeIssues(results: ScanResult[]): {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+} {
+  return results.reduce(
+    (acc, result) => ({
+      critical: acc.critical + result.summary.critical,
+      high: acc.high + result.summary.high,
+      medium: acc.medium + result.summary.medium,
+      low: acc.low + result.summary.low,
+    }),
+    { critical: 0, high: 0, medium: 0, low: 0 },
+  );
+}
+
+function printScanIssues(filePath: string, result: ScanResult): void {
+  if (result.issues.length === 0) {
+    return;
+  }
+
+  console.log(`📄 ${filePath}`);
+  result.issues.forEach((issue) => {
+    const emoji = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' }[issue.severity];
+    const lineText = issue.location.line ? ` line ${issue.location.line}` : '';
+    console.log(`  ${emoji}${lineText}: ${issue.message}`);
+  });
+}
+
+function findFiles(rootDir: string, fileNamePattern: RegExp): string[] {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+
+  const results: string[] = [];
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    if (!currentDir) {
+      continue;
+    }
+
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    entries.forEach((entry) => {
+      const fullPath = path.join(currentDir, entry.name);
+
+      if (entry.isSymbolicLink()) {
+        return;
+      }
+
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith('.') || IGNORED_DIRECTORIES.has(entry.name)) {
+          return;
+        }
+        stack.push(fullPath);
+        return;
+      }
+
+      if (fileNamePattern.test(entry.name)) {
+        results.push(fullPath);
+      }
+    });
+  }
+
+  results.sort((a, b) => a.localeCompare(b));
+  return results;
+}
+
+function findAppleDoubleArtifacts(rootDir: string): string[] {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+
+  const results: string[] = [];
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    if (!currentDir) {
+      continue;
+    }
+
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    entries.forEach((entry) => {
+      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === 'dist') {
+        return;
+      }
+
+      const fullPath = path.join(currentDir, entry.name);
+
+      if (entry.isSymbolicLink()) {
+        return;
+      }
+
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        return;
+      }
+
+      if (entry.name.startsWith('._')) {
+        results.push(fullPath);
+      }
+    });
+  }
+
+  return results.sort((a, b) => a.localeCompare(b));
+}
+
+function validateStructureIntegrity(): CheckResult {
+  const root = process.cwd();
+  const issues: string[] = [];
+  const warnings: string[] = [];
+
+  const requiredPaths = [
+    'README.md',
+    'SKILL.md',
+    'package.json',
+    'tsconfig.json',
+    'src/commands/forge.ts',
+    'src/security/ast-scanner.ts',
+    'src/security/sandbox-config.ts',
+    'src/sync/agent-sync.ts',
+  ];
+
+  requiredPaths.forEach((relativePath) => {
+    if (!fs.existsSync(path.join(root, relativePath))) {
+      issues.push(`Missing required file: ${relativePath}`);
+    }
+  });
+
+  const packageJson = readJsonFile(path.join(root, 'package.json'));
+  if (!packageJson) {
+    issues.push('package.json is missing or invalid JSON');
+  } else {
+    const scripts = typeof packageJson.scripts === 'object' && packageJson.scripts ? packageJson.scripts : {};
+    ['build', 'scan', 'validate'].forEach((scriptName) => {
+      if (typeof (scripts as Record<string, unknown>)[scriptName] !== 'string') {
+        warnings.push(`Script "${scriptName}" is not defined in package.json`);
+      }
+    });
+  }
+
+  return {
+    pass: issues.length === 0,
+    issues,
+    warnings,
+  };
+}
+
+function validateStability(): CheckResult {
+  const issues: string[] = [];
+  const warnings: string[] = [];
+  const cliPath = path.join(process.cwd(), 'src/commands/forge.ts');
+
+  if (!fs.existsSync(cliPath)) {
+    issues.push('src/commands/forge.ts not found');
+    return { pass: false, issues, warnings };
+  }
+
+  const content = fs.readFileSync(cliPath, 'utf-8');
+  const parseCount = (content.match(/^\s*program\.parse\(process\.argv\);?\s*$/gm) || []).length;
+  if (parseCount !== 1) {
+    issues.push(`Expected one "program.parse(process.argv)", found ${parseCount}`);
+  }
+
+  const syncCommandCount = (content.match(/\.command\('sync <agent-name>'\)/g) || []).length;
+  const listCommandCount = (content.match(/\.command\('list'\)/g) || []).length;
+  if (syncCommandCount !== 1) {
+    issues.push(`Expected one sync command, found ${syncCommandCount}`);
+  }
+  if (listCommandCount !== 1) {
+    issues.push(`Expected one list command, found ${listCommandCount}`);
+  }
+
+  const sourceFiles = findFiles(path.join(process.cwd(), 'src'), /\.(ts|js|mjs|cjs)$/);
+  if (sourceFiles.length === 0) {
+    warnings.push('No source files found under src/');
+  }
+
+  return {
+    pass: issues.length === 0,
+    issues,
+    warnings,
+  };
+}
+
+function validateNoHiddenRisks(): CheckResult {
+  const issues: string[] = [];
+  const warnings: string[] = [];
+  const root = process.cwd();
+
+  const appleDoubleArtifacts = findAppleDoubleArtifacts(root);
+  if (appleDoubleArtifacts.length > 0) {
+    issues.push(`Found AppleDouble artifacts (._*) in repository: ${appleDoubleArtifacts.length}`);
+  }
+
+  const codeFiles = findFiles(path.join(root, 'src'), /\.(ts|js|mjs|cjs)$/).filter(
+    (filePath) =>
+      !filePath.endsWith(`${path.sep}security${path.sep}ast-scanner.ts`) &&
+      !filePath.includes(`${path.sep}tests${path.sep}`),
+  );
+  const results = codeFiles.map((filePath) => {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return scanFileContent(content, filePath);
+  });
+  const summary = summarizeIssues(results);
+
+  if (summary.critical > 0 || summary.high > 0) {
+    issues.push(`Scanner found ${summary.critical} critical and ${summary.high} high issues in src/`);
+  } else if (summary.medium > 0 || summary.low > 0) {
+    warnings.push(`Scanner found ${summary.medium} medium and ${summary.low} low issues in src/`);
+  }
+
+  return {
+    pass: issues.length === 0,
+    issues,
+    warnings,
+  };
+}
+
+function validateUserExperience(): CheckResult {
+  const issues: string[] = [];
+  const warnings: string[] = [];
+  const root = process.cwd();
+
+  ['docs/getting-started.md', 'docs/SECURITY_GUIDE.md', 'docs/SYNC_GUIDE.md'].forEach((relativePath) => {
+    if (!fs.existsSync(path.join(root, relativePath))) {
+      warnings.push(`Missing recommended doc: ${relativePath}`);
+    }
+  });
+
+  const readmePath = path.join(root, 'README.md');
+  if (!fs.existsSync(readmePath)) {
+    issues.push('README.md is missing');
+    return {
+      pass: false,
+      issues,
+      warnings,
+    };
+  }
+
+  const readme = fs.readFileSync(readmePath, 'utf-8');
+  const expectedCommands = ['forge create', 'forge scan', 'forge validate', 'forge sync'];
+  expectedCommands.forEach((command) => {
+    if (!readme.includes(command)) {
+      warnings.push(`README is missing command example: ${command}`);
+    }
+  });
+
+  return {
+    pass: issues.length === 0,
+    issues,
+    warnings,
+  };
+}
+
+function readJsonFile(filePath: string): Record<string, unknown> | null {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function listForgeAgents(root: string): ForgeAgentInfo[] {
+  const agentsRoot = path.join(root, 'agents');
+  if (!fs.existsSync(agentsRoot)) {
+    return [];
+  }
+
+  const soulFiles = findFiles(agentsRoot, /^SOUL\.md$/);
+  return soulFiles.map((soulPath) => {
+    const soulDir = path.dirname(soulPath);
+    const relative = path.relative(agentsRoot, soulDir);
+    const parts = relative.split(path.sep);
+    const id = parts[parts.length - 1] || relative;
+    const group = parts.length > 1 ? parts.slice(0, -1).join('/') : undefined;
+    const model = extractModelFromSoul(fs.readFileSync(soulPath, 'utf-8'));
+
+    return {
+      source: 'forge',
+      id,
+      model,
+      group,
+    };
+  });
+}
+
+function listOpenClawAgents(): OpenClawAgentInfo[] {
+  const home = process.env.HOME;
+  if (!home) {
+    return [];
+  }
+
+  const openclawAgentsRoot = path.join(home, '.openclaw', 'agents');
+  if (!fs.existsSync(openclawAgentsRoot)) {
+    return [];
+  }
+
+  const entries = fs.readdirSync(openclawAgentsRoot, { withFileTypes: true });
+  const results: OpenClawAgentInfo[] = [];
+
+  entries.forEach((entry) => {
+    if (!entry.isDirectory()) {
+      return;
+    }
+
+    const agentId = entry.name;
+    const modelsPath = path.join(openclawAgentsRoot, agentId, 'agent', 'models.json');
+    const modelsJson = readJsonFile(modelsPath);
+
+    let provider = 'unknown';
+    let model = 'unknown';
+
+    if (modelsJson && typeof modelsJson.providers === 'object' && modelsJson.providers) {
+      const providers = modelsJson.providers as Record<string, unknown>;
+      const providerKeys = Object.keys(providers);
+      if (providerKeys.length > 0) {
+        provider = providerKeys[0];
+        const firstProvider = providers[provider] as Record<string, unknown> | undefined;
+        const models = Array.isArray(firstProvider?.models) ? firstProvider.models : [];
+        const firstModel = (models[0] ?? {}) as Record<string, unknown>;
+        if (typeof firstModel.id === 'string' && firstModel.id.trim()) {
+          model = firstModel.id;
+        }
+      }
+    }
+
+    results.push({
+      source: 'openclaw',
+      id: agentId,
+      provider,
+      model,
+    });
+  });
+
+  results.sort((a, b) => a.id.localeCompare(b.id));
+  return results;
+}
+
+function extractModelFromSoul(content: string): string {
+  const patterns = [/[-*]\s*\*\*Model\*\*:\s*(.+)/i, /[-*]\s*\*\*模型\*\*:\s*(.+)/i, /模型[：:]\s*(.+)/];
+  for (const pattern of patterns) {
+    const match = content.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+  return 'unknown';
+}
+
+function failWithError(prefix: string, error: unknown): never {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`❌ ${prefix}: ${message}`);
+  process.exit(1);
+}

@@ -1,6 +1,6 @@
 {
   "name": "openclaw-agent-forge",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "🦞 OpenClaw Agent Forge - 安全的智能体锻造工具",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,8 +10,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/commands/forge.ts",
-    "test": "jest",
-    "lint": "eslint src/**/*.ts",
+    "test": "ts-node src/tests/run-tests.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
     "scan": "ts-node src/commands/forge.ts scan",
     "validate": "ts-node src/commands/forge.ts validate --four-layer"
   },
@@ -27,6 +28,7 @@
   "author": "srxly888-creator",
   "license": "MIT",
   "dependencies": {
+    "chokidar": "^3.6.0",
     "commander": "^11.1.0",
     "chalk": "^5.3.0",
     "inquirer": "^9.2.12",
@@ -37,8 +39,6 @@
     "@types/inquirer": "^9.0.7",
     "typescript": "^5.3.3",
     "ts-node": "^10.9.2",
-    "jest": "^29.7.0",
-    "@types/jest": "^29.5.11",
     "eslint": "^8.55.0",
     "@typescript-eslint/parser": "^6.14.0",
     "@typescript-eslint/eslint-plugin": "^6.14.0"
@@ -48,10 +48,17 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/srxly888-creator/openclaw-agent-forge"
+    "url": "git+https://github.com/srxly888-creator/openclaw-agent-forge.git"
   },
   "bugs": {
     "url": "https://github.com/srxly888-creator/openclaw-agent-forge/issues"
   },
-  "homepage": "https://github.com/srxly888-creator/openclaw-agent-forge#readme"
+  "homepage": "https://github.com/srxly888-creator/openclaw-agent-forge#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SKILL.md",
+    "docs"
+  ]
 }

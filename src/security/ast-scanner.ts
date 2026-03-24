@@ -1,8 +1,7 @@
 /**
  * OpenClaw Agent Forge - Static Analysis Security Scanner
  *
- * 扫描生成的代码和配置，检测安全隐患
- * 基于 Snyk Skill Security Scanner 规范
+ * Scans generated code and configuration files for common security risks.
  */
 
 export interface SecurityIssue {
@@ -28,377 +27,419 @@ export interface ScanResult {
   };
 }
 
-/**
- * API 密钥模式检测
- */
-const API_KEY_PATTERNS = [
-  /sk-[a-zA-Z0-9]{20,}/g,  // OpenAI
-  /sk-ant-api[a-zA-Z0-9-]{20,}/g,  // Anthropic
-  /xox[baprs]-[a-zA-Z0-9-]{10,}/g,  // Slack
-  /ghp_[a-zA-Z0-9]{36}/g,  // GitHub Personal Access Token
-  /gho_[a-zA-Z0-9]{36}/g,  // GitHub OAuth Token
-  /ghu_[a-zA-Z0-9]{36}/g,  // GitHub User Token
-  /ghs_[a-zA-Z0-9]{36}/g,  // GitHub Server Token
-  /ghr_[a-zA-Z0-9]{36}/g,  // GitHub Refresh Token
-  /AKIA[0-9A-Z]{16}/g,  // AWS Access Key ID
-  /eyJ[a-zA-Z0-9-_=]+\.[a-zA-Z0-9-_=]+\.?[a-zA-Z0-9-_.+/=]*/g,  // JWT
-  /[a-f0-9]{32}/gi,  // Generic hex keys (32 chars)
+interface SecretRule {
+  name: string;
+  type: string;
+  severity: SecurityIssue['severity'];
+  pattern: RegExp;
+  recommendation: string;
+}
+
+const SECRET_RULES: SecretRule[] = [
+  {
+    name: 'OpenAI API key',
+    type: 'hardcoded-api-key',
+    severity: 'critical',
+    pattern: /\bsk-[a-zA-Z0-9]{20,}\b/g,
+    recommendation: 'Use environment variables or a secret manager for API keys.',
+  },
+  {
+    name: 'Anthropic API key',
+    type: 'hardcoded-api-key',
+    severity: 'critical',
+    pattern: /\bsk-ant-api[a-zA-Z0-9-]{20,}\b/g,
+    recommendation: 'Use environment variables or a secret manager for API keys.',
+  },
+  {
+    name: 'Slack token',
+    type: 'hardcoded-api-key',
+    severity: 'critical',
+    pattern: /\bxox[baprs]-[a-zA-Z0-9-]{10,}\b/g,
+    recommendation: 'Move Slack tokens out of source code immediately.',
+  },
+  {
+    name: 'GitHub token',
+    type: 'hardcoded-api-key',
+    severity: 'critical',
+    pattern: /\bgh[pousr]_[a-zA-Z0-9]{36}\b/g,
+    recommendation: 'Revoke and rotate exposed GitHub tokens.',
+  },
+  {
+    name: 'AWS access key ID',
+    type: 'hardcoded-api-key',
+    severity: 'critical',
+    pattern: /\bAKIA[0-9A-Z]{16}\b/g,
+    recommendation: 'Store cloud credentials in environment variables or vault.',
+  },
+  {
+    name: 'JWT token',
+    type: 'hardcoded-jwt',
+    severity: 'high',
+    pattern: /\beyJ[a-zA-Z0-9-_=]+\.[a-zA-Z0-9-_=]+\.?[a-zA-Z0-9-_.+/=]*\b/g,
+    recommendation: 'Avoid embedding live JWTs in source code and logs.',
+  },
 ];
 
-/**
- * 危险函数模式检测
- */
+const POSSIBLE_SECRET_LINE = /\b[a-f0-9]{32}\b/gi;
+const SECRET_CONTEXT = /(api[_-]?key|token|secret|password|credential)/i;
+
 const DANGEROUS_FUNCTIONS = [
-  { pattern: /eval\s*\(/g, name: 'eval()', severity: 'critical' as const },
-  { pattern: /Function\s*\(/g, name: 'Function()', severity: 'critical' as const },
-  { pattern: /exec\s*\(/g, name: 'exec()', severity: 'high' as const },
-  { pattern: /spawn\s*\(/g, name: 'spawn()', severity: 'high' as const },
-  { pattern: /execSync\s*\(/g, name: 'execSync()', severity: 'high' as const },
-  { pattern: /execFileSync\s*\(/g, name: 'execFileSync()', severity: 'high' as const },
+  { pattern: /(^|[^.\w])eval\s*\(/g, name: 'eval()', severity: 'critical' as const },
+  { pattern: /(^|[^.\w])Function\s*\(/g, name: 'Function()', severity: 'critical' as const },
+  { pattern: /(^|[^.\w])exec\s*\(/g, name: 'exec()', severity: 'high' as const },
+  { pattern: /(^|[^.\w])spawn\s*\(/g, name: 'spawn()', severity: 'high' as const },
+  { pattern: /(^|[^.\w])execSync\s*\(/g, name: 'execSync()', severity: 'high' as const },
+  { pattern: /(^|[^.\w])execFileSync\s*\(/g, name: 'execFileSync()', severity: 'high' as const },
 ];
 
-/**
- * 不安全的输入处理模式
- */
 const UNSAFE_INPUT_PATTERNS = [
   {
     pattern: /process\.argv\s*\[\s*\d+\s*\]/g,
     name: 'Direct process.argv access',
     severity: 'medium' as const,
-    recommendation: '使用参数验证库（如 zod）验证用户输入'
+    recommendation: 'Validate CLI input using a schema validator (e.g. zod).',
   },
   {
     pattern: /require\s*\(\s*[`'"][^`'"]+[`'"]\s*\+.*\)/g,
     name: 'Dynamic require with user input',
     severity: 'high' as const,
-    recommendation: '避免动态 require，使用静态导入或白名单'
+    recommendation: 'Avoid dynamic require; prefer static imports or strict allow-lists.',
   },
   {
     pattern: /\$\{[^}]*process\.env[^}]*\}/g,
     name: 'Template literal with process.env',
     severity: 'medium' as const,
-    recommendation: '验证环境变量后再使用'
+    recommendation: 'Validate environment values before interpolation.',
   },
 ];
 
-/**
- * 扫描文件内容
- */
+const SQL_INJECTION_PATTERNS = [
+  /(?:SELECT|INSERT|UPDATE|DELETE)[^;\n]*\$\{[^}]+\}/gi,
+  /(?:SELECT|INSERT|UPDATE|DELETE)[^;\n]*\+\s*[a-zA-Z_$][\w$]*/gi,
+];
+
+const DANGEROUS_TOOLS = new Set(['exec', 'browser', 'edit', 'write']);
+
 export function scanFileContent(content: string, filePath: string): ScanResult {
   const issues: SecurityIssue[] = [];
   const lines = content.split('\n');
 
-  // 检测 API 密钥
-  API_KEY_PATTERNS.forEach((pattern, index) => {
-    const matches = content.match(pattern);
-    if (matches) {
-      matches.forEach(match => {
-        const lineNum = content.substring(0, content.indexOf(match)).split('\n').length;
-        issues.push({
-          severity: 'critical',
-          type: 'hardcoded-api-key',
-          message: `检测到硬编码的 API 密钥: ${match.substring(0, 10)}...`,
-          location: { file: filePath, line: lineNum },
-          recommendation: '使用环境变量或配置文件存储敏感信息'
-        });
+  SECRET_RULES.forEach((rule) => {
+    for (const match of content.matchAll(rule.pattern)) {
+      const start = match.index ?? 0;
+      issues.push({
+        severity: rule.severity,
+        type: rule.type,
+        message: `Detected ${rule.name}: ${maskSecret(match[0])}`,
+        location: { file: filePath, line: lineNumberAt(content, start) },
+        recommendation: rule.recommendation,
       });
     }
   });
 
-  // 检测危险函数
-  DANGEROUS_FUNCTIONS.forEach(func => {
-    const matches = [...content.matchAll(func.pattern)];
-    matches.forEach(match => {
-      const lineNum = match.index ? content.substring(0, match.index).split('\n').length : 1;
+  lines.forEach((line, index) => {
+    if (!SECRET_CONTEXT.test(line)) {
+      return;
+    }
+
+    const matches = line.match(POSSIBLE_SECRET_LINE);
+    if (!matches) {
+      return;
+    }
+
+    matches.forEach((match) => {
+      issues.push({
+        severity: 'medium',
+        type: 'possible-hardcoded-secret',
+        message: `Possible hardcoded secret near credential-like context: ${maskSecret(match)}`,
+        location: { file: filePath, line: index + 1 },
+        recommendation: 'Review whether this value is sensitive. If yes, move it to env/secret manager.',
+      });
+    });
+  });
+
+  DANGEROUS_FUNCTIONS.forEach((func) => {
+    for (const match of content.matchAll(func.pattern)) {
+      const start = match.index ?? 0;
       issues.push({
         severity: func.severity,
         type: 'dangerous-function',
-        message: `使用了危险函数: ${func.name}`,
-        location: { file: filePath, line: lineNum },
-        recommendation: '验证并净化所有输入，考虑使用更安全的替代方案'
+        message: `Dangerous function usage: ${func.name}`,
+        location: { file: filePath, line: lineNumberAt(content, start) },
+        recommendation: 'Validate and sanitize all input. Prefer safer alternatives.',
       });
-    });
+    }
   });
 
-  // 检测不安全的输入处理
-  UNSAFE_INPUT_PATTERNS.forEach(pattern => {
-    const matches = [...content.matchAll(pattern.pattern)];
-    matches.forEach(match => {
-      const lineNum = match.index ? content.substring(0, match.index).split('\n').length : 1;
+  UNSAFE_INPUT_PATTERNS.forEach((rule) => {
+    for (const match of content.matchAll(rule.pattern)) {
+      const start = match.index ?? 0;
       issues.push({
-        severity: pattern.severity,
+        severity: rule.severity,
         type: 'unsafe-input-handling',
-        message: pattern.name,
-        location: { file: filePath, line: lineNum },
-        recommendation: pattern.recommendation
+        message: rule.name,
+        location: { file: filePath, line: lineNumberAt(content, start) },
+        recommendation: rule.recommendation,
       });
-    });
+    }
   });
 
-  // 检测 SQL 注入风险
-  const sqlInjectionPatterns = [
-    /\$\{.*\}\s*;?\s*['"]?\s*(?:SELECT|INSERT|UPDATE|DELETE)/gi,
-    /\+\s*['"]?\s*(?:SELECT|INSERT|UPDATE|DELETE)/gi,
-  ];
-
-  sqlInjectionPatterns.forEach((pattern, index) => {
-    const matches = [...content.matchAll(pattern)];
-    matches.forEach(match => {
-      const lineNum = match.index ? content.substring(0, match.index).split('\n').length : 1;
+  SQL_INJECTION_PATTERNS.forEach((pattern) => {
+    for (const match of content.matchAll(pattern)) {
+      const start = match.index ?? 0;
       issues.push({
         severity: 'high',
         type: 'sql-injection-risk',
-        message: '可能的 SQL 注入风险',
-        location: { file: filePath, line: lineNum },
-        recommendation: '使用参数化查询或 ORM，避免字符串拼接'
+        message: 'Possible SQL injection risk from string interpolation/concatenation.',
+        location: { file: filePath, line: lineNumberAt(content, start) },
+        recommendation: 'Use parameterized queries or ORM methods instead of string composition.',
       });
-    });
+    }
   });
 
-  // 统计问题数量
-  const summary = {
-    critical: issues.filter(i => i.severity === 'critical').length,
-    high: issues.filter(i => i.severity === 'high').length,
-    medium: issues.filter(i => i.severity === 'medium').length,
-    low: issues.filter(i => i.severity === 'low').length,
-  };
-
-  return {
-    safe: summary.critical === 0 && summary.high === 0,
-    issues,
-    summary
-  };
+  return buildScanResult(issues);
 }
 
-/**
- * 扫描 SKILL.md 文件
- */
 export function scanSkillFile(content: string, filePath: string): ScanResult {
   const issues: SecurityIssue[] = [];
+  const normalized = content.toLowerCase();
 
-  // 检查是否明确说明了工具边界
-  if (!content.includes('工具') && !content.includes('tool') && !content.includes('Tool')) {
+  if (!normalized.includes('tool') && !content.includes('工具')) {
     issues.push({
       severity: 'medium',
       type: 'missing-tool-documentation',
-      message: 'SKILL.md 未说明工具使用边界',
+      message: 'SKILL.md does not describe tool boundaries.',
       location: { file: filePath },
-      recommendation: '在 SKILL.md 中明确说明工具的输入、输出、依赖环境及操作边界'
+      recommendation: 'Document tool input/output, environment dependencies, and operational boundaries.',
     });
   }
 
-  // 检查是否包含安全警告
-  if (content.includes('exec') && !content.includes('安全') && !content.includes('security')) {
+  if (normalized.includes('exec') && !normalized.includes('security') && !content.includes('安全')) {
     issues.push({
       severity: 'high',
       type: 'missing-security-warning',
-      message: '使用 exec 工具但未提供安全警告',
+      message: 'SKILL.md references exec-like capability but lacks a security warning.',
       location: { file: filePath },
-      recommendation: '在 SKILL.md 中添加安全警告，说明使用 exec 工具的风险'
+      recommendation: 'Add explicit security guidance and guardrails for command execution.',
     });
   }
 
-  // 检查是否说明了错误处理
-  if (!content.includes('错误') && !content.includes('error') && !content.includes('Error')) {
+  if (!normalized.includes('error') && !content.includes('错误')) {
     issues.push({
       severity: 'low',
       type: 'missing-error-handling',
-      message: 'SKILL.md 未说明错误处理方式',
+      message: 'SKILL.md does not explain error handling behavior.',
       location: { file: filePath },
-      recommendation: '在 SKILL.md 中说明错误处理方式，避免生硬的堆栈追踪'
+      recommendation: 'Describe expected failure handling and user-facing recovery behavior.',
     });
   }
 
-  const summary = {
-    critical: issues.filter(i => i.severity === 'critical').length,
-    high: issues.filter(i => i.severity === 'high').length,
-    medium: issues.filter(i => i.severity === 'medium').length,
-    low: issues.filter(i => i.severity === 'low').length,
-  };
-
-  return {
-    safe: summary.critical === 0 && summary.high === 0,
-    issues,
-    summary
-  };
+  return buildScanResult(issues);
 }
 
-/**
- * 扫描 openclaw.plugin.json 文件
- */
 export function scanPluginConfig(content: string, filePath: string): ScanResult {
   const issues: SecurityIssue[] = [];
-  let config: any;
+  let config: Record<string, unknown>;
 
   try {
-    config = JSON.parse(content);
-  } catch (e) {
+    config = JSON.parse(content) as Record<string, unknown>;
+  } catch {
     issues.push({
       severity: 'high',
       type: 'invalid-json',
-      message: '配置文件不是有效的 JSON',
+      message: 'Plugin config is not valid JSON.',
       location: { file: filePath },
-      recommendation: '检查 JSON 语法错误'
+      recommendation: 'Fix JSON syntax errors in openclaw.plugin.json.',
     });
-    return { safe: false, issues, summary: { critical: 0, high: 1, medium: 0, low: 0 } };
+    return buildScanResult(issues);
   }
 
-  // 检查是否配置了沙箱
-  if (config.tools && !config.sandbox) {
-    const hasDangerousTools = config.tools.some?.((t: string) =>
-      ['exec', 'browser', 'edit', 'write'].includes(t)
-    );
+  const toolsConfig = normalizeTools(config.tools);
+  const allowTools = toolsConfig.allow;
+  const denyTools = toolsConfig.deny;
+  const hasDangerousTool =
+    allowTools.includes('*') ||
+    allowTools.some((tool) => DANGEROUS_TOOLS.has(tool) || tool.endsWith('*'));
+  const sandbox = toRecord(config.sandbox);
 
-    if (hasDangerousTools) {
-      issues.push({
-        severity: 'high',
-        type: 'missing-sandbox',
-        message: '使用了危险工具但未配置沙箱',
-        location: { file: filePath },
-        recommendation: '为包含 exec/browser 等工具的插件配置 Docker 沙箱'
-      });
-    }
+  if (hasDangerousTool && (!sandbox || Object.keys(sandbox).length === 0)) {
+    issues.push({
+      severity: 'high',
+      type: 'missing-sandbox',
+      message: 'Dangerous tools are allowed but sandbox is not configured.',
+      location: { file: filePath },
+      recommendation: 'Configure sandbox isolation (Docker/native restrictions) before enabling dangerous tools.',
+    });
   }
 
-  // 检查是否配置了 allowedAgents
-  if (!config.agents || !config.agents.allowed) {
+  if (allowTools.includes('*') && denyTools.length === 0) {
+    issues.push({
+      severity: 'medium',
+      type: 'overly-broad-tool-access',
+      message: 'Tools allow-list is "*" without deny rules.',
+      location: { file: filePath },
+      recommendation: 'Use principle of least privilege with explicit allow/deny tool lists.',
+    });
+  }
+
+  const agents = toRecord(config.agents);
+  const allowedAgents = Array.isArray(agents?.allowed)
+    ? (agents?.allowed as unknown[]).filter((item) => typeof item === 'string')
+    : [];
+  if (allowedAgents.length === 0) {
     issues.push({
       severity: 'medium',
       type: 'missing-agent-whitelist',
-      message: '未配置智能体白名单',
+      message: 'No agent whitelist configured.',
       location: { file: filePath },
-      recommendation: '配置 allowedAgents 以限制插件只能被特定智能体调用'
+      recommendation: 'Configure agents.allowed to scope plugin usage to approved agents.',
     });
   }
 
-  // 检查是否使用了过时的 API
   if (config.hooks && !config.providers) {
     issues.push({
       severity: 'low',
       type: 'deprecated-api',
-      message: '使用了过时的 hooks 模式',
+      message: 'Legacy "hooks" field detected without "providers".',
       location: { file: filePath },
-      recommendation: '迁移到现代化的 registerProvider() API'
+      recommendation: 'Migrate to modern provider registration patterns.',
     });
   }
 
-  const summary = {
-    critical: issues.filter(i => i.severity === 'critical').length,
-    high: issues.filter(i => i.severity === 'high').length,
-    medium: issues.filter(i => i.severity === 'medium').length,
-    low: issues.filter(i => i.severity === 'low').length,
-  };
-
-  return {
-    safe: summary.critical === 0 && summary.high === 0,
-    issues,
-    summary
-  };
+  return buildScanResult(issues);
 }
 
-/**
- * 生成安全扫描报告
- */
 export function generateScanReport(results: ScanResult[], projectName: string): string {
-  const totalIssues = results.reduce((acc, r) => ({
-    critical: acc.critical + r.summary.critical,
-    high: acc.high + r.summary.high,
-    medium: acc.medium + r.summary.medium,
-    low: acc.low + r.summary.low,
-  }), { critical: 0, high: 0, medium: 0, low: 0 });
+  const totalIssues = results.reduce(
+    (acc, result) => ({
+      critical: acc.critical + result.summary.critical,
+      high: acc.high + result.summary.high,
+      medium: acc.medium + result.summary.medium,
+      low: acc.low + result.summary.low,
+    }),
+    { critical: 0, high: 0, medium: 0, low: 0 },
+  );
 
-  const allSafe = results.every(r => r.safe);
+  const allSafe = results.every((result) => result.safe);
 
-  let report = `# 安全扫描报告 - ${projectName}
+  let report = `# Security Scan Report - ${projectName}
 
-## 总体评估
+## Overall
 
-${allSafe ? '✅ **通过** - 未发现高危安全问题' : '❌ **失败** - 发现需要处理的安全问题'}
+${allSafe ? '✅ PASS - No high/critical issues detected.' : '❌ FAIL - High or critical issues detected.'}
 
-## 问题统计
+## Summary
 
-| 严重性 | 数量 |
-|--------|------|
+| Severity | Count |
+|----------|-------|
 | 🔴 Critical | ${totalIssues.critical} |
 | 🟠 High | ${totalIssues.high} |
 | 🟡 Medium | ${totalIssues.medium} |
 | 🟢 Low | ${totalIssues.low} |
 
-## 详细问题列表
+## Findings
 
 `;
 
-  results.forEach(result => {
-    if (result.issues.length > 0) {
-      result.issues.forEach(issue => {
-        const severityEmoji = {
-          critical: '🔴',
-          high: '🟠',
-          medium: '🟡',
-          low: '🟢'
-        }[issue.severity];
+  let hasFinding = false;
 
-        report += `### ${severityEmoji} ${issue.type}
+  results.forEach((result) => {
+    result.issues.forEach((issue) => {
+      hasFinding = true;
+      const severityEmoji: Record<SecurityIssue['severity'], string> = {
+        critical: '🔴',
+        high: '🟠',
+        medium: '🟡',
+        low: '🟢',
+      };
 
-- **文件**: \`${issue.location.file}\`${issue.location.line ? `:${issue.location.line}` : ''}
-- **严重性**: ${issue.severity.toUpperCase()}
-- **描述**: ${issue.message}
-- **建议**: ${issue.recommendation}
+      const location = issue.location.line
+        ? `${issue.location.file}:${issue.location.line}`
+        : issue.location.file;
+
+      report += `### ${severityEmoji[issue.severity]} ${issue.type}
+
+- **Location**: \`${location}\`
+- **Severity**: ${issue.severity.toUpperCase()}
+- **Message**: ${issue.message}
+- **Recommendation**: ${issue.recommendation}
 
 `;
-      });
-    }
+    });
   });
 
-  report += `## 修复建议
-
-`;
-
-  if (totalIssues.critical > 0) {
-    report += `### 🔴 Critical 问题（必须修复）
-
-- 移除所有硬编码的 API 密钥
-- 使用环境变量或配置文件存储敏感信息
-- 立即更换已泄露的密钥
-
-`;
+  if (!hasFinding) {
+    report += '_No findings._\n\n';
   }
 
-  if (totalIssues.high > 0) {
-    report += `### 🟠 High 问题（强烈建议修复）
-
-- 配置 Docker 沙箱隔离危险工具
-- 验证并净化所有用户输入
-- 添加安全警告文档
-
-`;
-  }
-
-  if (totalIssues.medium > 0) {
-    report += `### 🟡 Medium 问题（建议修复）
-
-- 配置智能体白名单
-- 完善错误处理文档
-- 迁移到现代化 API
-
-`;
-  }
-
-  report += `## 扫描完成时间
+  report += `## Generated At
 
 ${new Date().toISOString()}
-
----
-
-*此报告由 OpenClaw Agent Forge Security Scanner 生成*
 `;
 
   return report;
+}
+
+function normalizeTools(
+  tools: unknown,
+): {
+  allow: string[];
+  deny: string[];
+} {
+  if (Array.isArray(tools)) {
+    return {
+      allow: tools.filter((tool) => typeof tool === 'string'),
+      deny: [],
+    };
+  }
+
+  const record = toRecord(tools);
+  const allow = Array.isArray(record?.allow)
+    ? (record?.allow as unknown[]).filter((tool) => typeof tool === 'string')
+    : [];
+  const deny = Array.isArray(record?.deny)
+    ? (record?.deny as unknown[]).filter((tool) => typeof tool === 'string')
+    : [];
+
+  return { allow, deny };
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function lineNumberAt(content: string, index: number): number {
+  return content.slice(0, index).split('\n').length;
+}
+
+function buildScanResult(issues: SecurityIssue[]): ScanResult {
+  const summary = {
+    critical: issues.filter((issue) => issue.severity === 'critical').length,
+    high: issues.filter((issue) => issue.severity === 'high').length,
+    medium: issues.filter((issue) => issue.severity === 'medium').length,
+    low: issues.filter((issue) => issue.severity === 'low').length,
+  };
+
+  return {
+    safe: summary.critical === 0 && summary.high === 0,
+    issues,
+    summary,
+  };
+}
+
+function maskSecret(secret: string): string {
+  if (secret.length <= 8) {
+    return '***';
+  }
+  return `${secret.slice(0, 4)}...${secret.slice(-4)}`;
 }
 
 export default {
   scanFileContent,
   scanSkillFile,
   scanPluginConfig,
-  generateScanReport
+  generateScanReport,
 };

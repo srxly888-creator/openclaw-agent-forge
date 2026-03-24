@@ -201,7 +201,7 @@ export function validateSecurityConfig(config: SandboxConfig): {
 export function generateSecurityDocs(config: SandboxConfig): string {
   const validation = validateSecurityConfig(config);
 
-  let docs = `# 安全配置说明
+  const docs = `# 安全配置说明
 
 ## 配置详情
 

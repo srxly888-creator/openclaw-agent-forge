@@ -1,0 +1,10 @@
+.DS_Store
+._*
+
+node_modules/
+dist/
+coverage/
+
+security-scan-report.md
+npm-debug.log*
+yarn-error.log*
