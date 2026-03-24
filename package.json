@@ -1,0 +1,57 @@
+{
+  "name": "openclaw-agent-forge",
+  "version": "2.0.0",
+  "description": "🦞 OpenClaw Agent Forge - 安全的智能体锻造工具",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "forge": "./dist/commands/forge.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/commands/forge.ts",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "scan": "ts-node src/commands/forge.ts scan",
+    "validate": "ts-node src/commands/forge.ts validate --four-layer"
+  },
+  "keywords": [
+    "openclaw",
+    "agent",
+    "forge",
+    "security",
+    "sandbox",
+    "multi-agent",
+    "orchestration"
+  ],
+  "author": "srxly888-creator",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "chalk": "^5.3.0",
+    "inquirer": "^9.2.12",
+    "ora": "^7.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/inquirer": "^9.0.7",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@typescript-eslint/eslint-plugin": "^6.14.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srxly888-creator/openclaw-agent-forge"
+  },
+  "bugs": {
+    "url": "https://github.com/srxly888-creator/openclaw-agent-forge/issues"
+  },
+  "homepage": "https://github.com/srxly888-creator/openclaw-agent-forge#readme"
+}
