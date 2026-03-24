@@ -1,299 +1,330 @@
-# 🦞 OpenClaw Agent Forge
+# 🤖 OpenClaw Agent Forge
 
-> **专业子 Agent 管理工具：智能生成、模板库、一键部署、版本控制、社区分享**
+<div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![Stars](https://img.shields.io/github/stars/srxly888-creator/openclaw-agent-forge?style=social)](https://github.com/srxly888-creator/openclaw-agent-forge)
+![OpenClaw Agent Forge](https://img.shields.io/badge/OpenClaw-Agent%20Forge-blue)
+![Stars](https://img.shields.io/github/stars/srxly888-creator/openclaw-agent-forge?style=social)
+![License](https://img.shields.io/github/license/srxly888-creator/openclaw-agent-forge)
+![Issues](https://img.shields.io/github/issues/srxly888-creator/openclaw-agent-forge)
 
----
+**Professional AI Agent Toolkit - Create agents with skills**
 
-## 🎯 项目目标
+[English](#english) | [中文](#中文)
 
-**解决痛点**:
-- ❌ 手动创建 SOUL.md、AGENTS.md、USER.md 繁琐
-- ❌ 缺少标准化的 Agent 管理工具
-- ❌ 难以分享和复用专业 Agent
-- ❌ 版本控制和协作困难
-
-**提供方案**:
-- ✅ **智能生成**: 使用 Codex/GLM 自动生成 Agent 配置
-- ✅ **模板库**: 100+ 专业 Agent 模板（开发、营销、生产力等）
-- ✅ **一键部署**: 自动配置并部署到 OpenClaw
-- ✅ **版本控制**: Git 管理版本
-- ✅ **社区分享**: 轻松分享和导入他人 Agent
+</div>
 
 ---
 
-## 📦 核心功能
+## 中文
 
-### 1. Agent 生成器（AI 驱动）
+### 🚀 简介
 
-**使用 Codex 或 GLM 根据自然语言描述生成完整 Agent 配置**
+OpenClaw Agent Forge 是一个专业的 AI Agent 工具包，帮助您快速创建具有技能的专业 Agent。
 
-**示例**:
-```bash
-# 生成一个代码审查 Agent
-./scripts/generate_agent.sh "请帮我创建一个专业的代码审查 Agent，要求：
-- 专注于 Python 和 JavaScript
-- 检查代码质量、安全性、性能
-- 提供改进建议
-" ./agents/development/code-reviewer
+**核心理念**: **轻 Prompt + 重 Skill**
+- Prompt 是岗位职责
+- Skill 是手脚（具体能力）
+- LLM 是协调者
+
+### ✨ 特性
+
+- ✅ **10 个预构建 Agent**（研究助理、邮件管理、会议安排等）
+- ✅ **40+ 即用技能**（带完整代码示例）
+- ✅ **多模型支持**（LiteLLM + GLM-5 + DeepSeek）
+- ✅ **100% 开源**（MIT License）
+- ✅ **易于扩展**（标准输入输出格式）
+
+### 📊 架构
+
+```
+用户请求
+    ↓
+Agent（轻 Prompt）
+    ↓
+LLM（Claude/GLM-5/DeepSeek）
+    ↓
+Skill 选择（Tools Schema）
+    ↓
+Skill 执行（Python 代码）
+    ↓
+响应
 ```
 
-**生成内容**:
-- `SOUL.md` - 角色定义
-- `AGENTS.md` - 工作空间配置
-- `USER.md` - 用户偏好
-- `BOOTSTRAP.md` - 首次运行引导
+### 🎯 快速开始
 
----
-
-### 2. Agent 模板库
-
-**100+ 专业 Agent 模板，按场景分类**:
-
-#### 生产力（Productivity）
-- 🎯 **Orion** - 项目管理，任务协调
-- 📊 **Pulse** - 数据分析，自动报告
-- 🧍 **Standup** - 每日站会收集
-- 📧 **Inbox** - 邮件分类和回复
-
-#### 开发（Development）
-- 🔎 **Lens** - 代码审查
-- 📖 **Scribe** - 文档生成
-- 🐛 **Trace** - Bug 追踪
-- 🧪 **Probe** - API 测试
-
-#### 营销（Marketing）
-- ✍️ **Echo** - 内容创作
-- 📱 **Buzz** - 社交媒体管理
-- 🔍 **Rank** - SEO 优化
-- 📬 **Digest** - Newsletter 策划
-
-#### 业务（Business）
-- 📊 **Radar** - 业务分析
-- 🎧 **Compass** - 客户支持
-- 💼 **Pipeline** - 销售助手
-- 💰 **Ledger** - 发票跟踪
-
-[查看完整模板库 →](./agents/)
-
----
-
-### 3. Agent 管理器
-
-**生命周期管理工具**
+#### 1. 安装依赖
 
 ```bash
-# 列出所有 Agent
-./scripts/manage_agents.sh list
-
-# 查看 Agent 配置
-./scripts/manage_agents.sh view code-reviewer
-
-# 更新 Agent
-./scripts/manage_agents.sh update code-reviewer
-
-# 删除 Agent
-./scripts/manage_agents.sh delete code-reviewer
+pip install litellm
 ```
 
----
+#### 2. 创建第一个 Agent
 
-### 4. Agent 分享器
+```python
+from openclaw_agent_forge import Agent
 
-**轻松分享和导入**
+# 创建研究助理
+researcher = Agent("research-assistant")
 
-```bash
-# 分享 Agent 到 GitHub
-./scripts/share_agent.sh code-reviewer
+# 搜索文献
+papers = researcher.literature_search("AI memory systems", max_results=10)
 
-# 从 GitHub 导入 Agent
-./scripts/import_agent.sh https://github.com/user/awesome-agent
+# 总结论文
+summary = researcher.summarize_paper(papers[0]["url"])
+
+# 生成报告
+report = researcher.generate_report(
+    data={"papers": papers, "summary": summary},
+    template="academic"
+)
+
+print(report["report_path"])
 ```
 
----
+### 🤖 预构建 Agent
 
-### 5. Agent 测试器
+| Agent | 用途 | 技能数 | 状态 |
+|-------|------|--------|------|
+| Research Assistant | 研究助理 | 4 | ✅ |
+| Email Manager | 邮件管理 | 3 | ✅ |
+| Meeting Scheduler | 会议安排 | 4 | ✅ |
+| Social Media Manager | 社媒运营 | 5 | ✅ |
+| Learning Coach | 学习教练 | 4 | ✅ |
+| Code Reviewer | 代码审查 | 3 | ✅ |
+| Content Creator | 内容创作 | 3 | ✅ |
+| Data Analyst | 数据分析 | 3 | ✅ |
+| Financial Analyst | 财务分析 | 4 | ⏳ |
+| Health Advisor | 健康顾问 | 3 | ⏳ |
 
-**沙盒环境测试**
+### 📚 完整示例
 
-```bash
-# 测试 Agent
-./scripts/test_agent.sh code-reviewer
+#### 示例 1: 研究助理
 
-# 查看日志
-./scripts/view_logs.sh code-reviewer
+```python
+from openclaw_agent_forge import Agent
+
+# 创建研究助理
+researcher = Agent("research-assistant")
+
+# 1. 搜索文献
+papers = researcher.literature_search("AI memory systems", max_results=10)
+print(f"找到 {len(papers)} 篇论文")
+
+# 2. 总结第一篇论文
+summary = researcher.summarize_paper(papers[0]["url"])
+print(f"论文标题: {summary['title']}")
+print(f"主要贡献: {summary['main_contributions']}")
+
+# 3. 生成研究报告
+report = researcher.generate_report(
+    data={"papers": papers, "summary": summary},
+    template="academic"
+)
+print(f"报告路径: {report['report_path']}")
 ```
 
----
+#### 示例 2: 会议安排
 
-## 🚀 快速开始
+```python
+from openclaw_agent_forge import Agent
 
-### 安装
+# 创建会议安排
+scheduler = Agent("meeting-scheduler")
 
-```bash
-# 克隆仓库
-git clone https://github.com/srxly888-creator/openclaw-agent-forge.git
-cd openclaw-agent-forge
+# 1. 查找共同空闲时间
+slots = scheduler.find_common_slots(
+    attendees=["ou_xxx", "ou_yyy"],
+    duration=60,
+    date_range={"start": "2026-03-25", "end": "2026-03-26"}
+)
 
-# 安装依赖
-npm install
+# 2. 创建会议
+meeting = scheduler.create_meeting(
+    title="项目讨论",
+    attendees=["ou_xxx", "ou_yyy"],
+    time=slots[0],
+    location="会议室 A"
+)
 
-# 验证安装
-./scripts/verify_installation.sh
+# 3. 发送邀请
+scheduler.send_invitation(meeting["event_id"], "请准时参加")
 ```
 
-### 使用
+### 🛠️ 自定义 Skill
 
-#### 方法 1: 使用 AI 生成（推荐）
+```python
+from openclaw_agent_forge import Skill
 
-```bash
-# 生成新 Agent
-./scripts/generate_agent.sh "描述你的 Agent 需求" ./agents/my-agent
+# 定义自定义 Skill
+@Skill(
+    name="custom_search",
+    description="自定义搜索功能",
+    parameters={
+        "query": {"type": "string", "description": "搜索关键词"},
+        "limit": {"type": "integer", "default": 10}
+    }
+)
+def custom_search(query: str, limit: int = 10):
+    """自定义搜索实现"""
+    # 实现搜索逻辑
+    results = [...]
+    
+    return {
+        "success": True,
+        "data": results
+    }
 
-# 部署到 OpenClaw
-./scripts/deploy_agent.sh my-agent
+# 添加到 Agent
+agent.add_skill(custom_search)
 ```
 
-#### 方法 2: 使用模板
-
-```bash
-# 从模板库选择
-./scripts/use_template.sh productivity/project-manager ./agents/my-pm
-
-# 自定义配置
-vim ./agents/my-pm/SOUL.md
-
-# 部署
-./scripts/deploy_agent.sh my-pm
-```
-
-#### 方法 3: 导入他人 Agent
-
-```bash
-# 从 GitHub 导入
-./scripts/import_agent.sh https://github.com/user/awesome-agent
-
-# 部署
-./scripts/deploy_agent.sh awesome-agent
-```
-
----
-
-## 📁 目录结构
+### 📦 项目结构
 
 ```
 openclaw-agent-forge/
-├── README.md                  # 本文件
-├── SKILL.md                   # OpenClaw Skill 定义
-├── agents/                    # Agent 模板库
-│   ├── productivity/          # 生产力 Agent
-│   ├── development/           # 开发 Agent
-│   ├── marketing/             # 营销 Agent
-│   └── business/              # 业务 Agent
-├── templates/                 # 模板库
-│   ├── basic/                 # 基础模板
-│   ├── advanced/              # 高级模板
-│   └── specialized/           # 专用模板
-├── scripts/                   # 工具脚本
-│   ├── generate_agent.sh      # Agent 生成器
-│   ├── deploy_agent.sh        # Agent 部署
-│   ├── share_agent.sh         # Agent 分享
-│   └── import_agent.sh        # Agent 导入
-├── docs/                      # 文档
-│   ├── getting-started.md     # 快速开始
-│   ├── best-practices.md      # 最佳实践
-│   └── examples.md            # 示例
-└── tools/                     # 工具
-    ├── codex-generator/       # Codex 生成器
-    └── template-manager/      # 模板管理器
+├── agents/
+│   ├── research-assistant/
+│   │   ├── config.json
+│   │   ├── skills/
+│   │   └── README.md
+│   ├── email-manager/
+│   └── ...
+├── skills/
+│   ├── literature_search.py
+│   ├── summarize_paper.py
+│   └── ...
+├── examples/
+│   ├── research_assistant_demo.py
+│   ├── meeting_scheduler_demo.py
+│   └── ...
+├── docs/
+│   ├── GETTING_STARTED.md
+│   ├── CUSTOM_SKILLS.md
+│   └── API_REFERENCE.md
+├── tests/
+├── README.md
+├── LICENSE
+└── requirements.txt
 ```
 
----
+### 🔧 配置
 
-## 🔧 技术栈
+#### LiteLLM 配置
 
-- **生成器**: Codex / GLM-5
-- **管理**: OpenClaw CLI
-- **版本控制**: Git
-- **分享**: GitHub
+```python
+import litellm
 
----
+# 配置 API Keys
+litellm.api_key = "your-api-key"
 
-## 📚 参考资源
+# 或使用环境变量
+# export OPENAI_API_KEY="your-key"
+# export ANTHROPIC_API_KEY="your-key"
+```
 
-### Agent 模板库
-- [Awesome OpenClaw Agents](https://github.com/mergisi/awesome-openclaw-agents) (1,782 stars)
-- [OpenClaw Agents](https://github.com/shenhao-stu/openclaw-agents) (315 stars)
+#### GLM-5 配置
 
-### Skill 库
-- [Awesome OpenClaw Skills](https://github.com/VoltAgent/awesome-openclaw-skills) (41,266 stars)
-- [Awesome OpenClaw Skills 中文](https://github.com/clawdbot-ai/awesome-openclaw-skills-zh) (3,545 stars)
+```python
+from zhipuai import ZhipuAI
 
-### 记忆系统
-- [EverMemOS](https://github.com/EverMind-AI/EverMemOS) (3,088 stars)
+client = ZhipuAI(api_key="your-glm-api-key")
+```
 
----
+### 📈 性能优化
 
-## 🤝 贡献
+| 模型 | 成本/100 次 | 延迟 | 质量 |
+|------|------------|------|------|
+| Claude-3.5-Sonnet | $5-25 | 1-2s | ⭐⭐⭐⭐⭐ |
+| GLM-5 | $0.5-2 | 0.5-1s | ⭐⭐⭐⭐ |
+| DeepSeek | $0.02-0.1 | 0.3-0.8s | ⭐⭐⭐ |
 
-我们热烈欢迎任何形式的贡献！
+### 🤝 贡献
 
-**贡献方式**:
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md)
 
-**贡献内容**:
-- ✅ 分享你的专业 Agent
-- ✅ 改进生成算法
-- ✅ 完善文档
-- ✅ 修复 Bug
+### 📄 许可证
 
----
+MIT License - 详见 [LICENSE](LICENSE)
 
-## 📄 许可证
+### 🔗 相关资源
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+- **OpenClaw 官网**: https://openclaw.ai
+- **文档**: https://docs.openclaw.ai
+- **Discord**: https://discord.com/invite/clawd
+- **GitHub**: https://github.com/openclaw/openclaw
 
 ---
 
-## 📞 获取帮助
+## English
 
-### 官方资源
-- [OpenClaw 文档](https://docs.openclaw.ai)
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
+### 🚀 Introduction
 
-### 社区支持
-- [Stack Overflow](https://stackoverflow.com/)
-- [GitHub Discussions](https://github.com/discussions)
-- [Discord](https://discord.gg/openclaw)
+OpenClaw Agent Forge is a professional AI Agent toolkit that helps you quickly create skilled professional agents.
+
+**Core Philosophy**: **Light Prompts + Heavy Skills**
+- Prompts are job responsibilities
+- Skills are hands and feet (specific capabilities)
+- LLM is the coordinator
+
+### ✨ Features
+
+- ✅ **10 Pre-built Agents** (Research Assistant, Email Manager, Meeting Scheduler, etc.)
+- ✅ **40+ Ready-to-use Skills** (with full code examples)
+- ✅ **Multi-model Support** (LiteLLM + GLM-5 + DeepSeek)
+- ✅ **100% Open Source** (MIT License)
+- ✅ **Easy to Extend** (Standard input/output format)
+
+### 🎯 Quick Start
+
+```python
+from openclaw_agent_forge import Agent
+
+# Create a research assistant
+researcher = Agent("research-assistant")
+
+# Search literature
+papers = researcher.literature_search("AI memory systems", max_results=10)
+
+# Summarize paper
+summary = researcher.summarize_paper(papers[0]["url"])
+
+# Generate report
+report = researcher.generate_report(
+    data={"papers": papers, "summary": summary},
+    template="academic"
+)
+```
+
+### 📊 Architecture
+
+```
+User Request
+    ↓
+Agent (Light Prompt)
+    ↓
+LLM (Claude/GLM-5/DeepSeek)
+    ↓
+Skill Selection (Tools Schema)
+    ↓
+Skill Execution (Python Code)
+    ↓
+Response
+```
+
+### 🤝 Contributing
+
+Contributions are welcome! Please check [CONTRIBUTING.md](CONTRIBUTING.md)
+
+### 📄 License
+
+MIT License - See [LICENSE](LICENSE)
 
 ---
 
-## 🎯 路线图
+<div align="center">
 
-### v1.0 (当前)
-- ✅ 基础 Agent 生成器
-- ✅ 10 个示例模板
-- ✅ 基础管理脚本
+**Made with ❤️ by OpenClaw Community**
 
-### v2.0 (计划)
-- ⏭️ 集成 Codex API
-- ⏭️ 100+ 模板库
-- ⏭️ Web UI 界面
+[⬆ Back to Top](#-openclaw-agent-forge)
 
-### v3.0 (未来)
-- ⏭️ AI Agent 市场
-- ⏭️ 社区协作平台
-- ⏭️ 自动化测试
-
----
-
-**开始创建你的专业 AI Agent！** 🚀
-
-**GitHub**: https://github.com/srxly888-creator/openclaw-agent-forge
+</div>
