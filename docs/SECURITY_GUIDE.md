@@ -2,6 +2,8 @@
 
 This project is designed around least-privilege defaults for OpenClaw agent workflows.
 
+**Security Architecture**: Based on [OpenClaw PR #51165 (Agent-Scoped Policy Parity)](https://github.com/openclaw/openclaw/pull/51165)
+
 ## Security Profiles
 
 Defined in `src/security/sandbox-config.ts`:

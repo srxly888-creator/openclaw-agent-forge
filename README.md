@@ -2,6 +2,8 @@
 
 Security-first toolkit for building and maintaining OpenClaw agents.
 
+**Based on**: [OpenClaw PR #51165 (Agent-Scoped Policy Parity)](https://github.com/openclaw/openclaw/pull/51165)
+
 ## What This Repo Provides
 
 - TypeScript CLI (`forge`) for agent scaffolding, security scanning, validation, and sync.
