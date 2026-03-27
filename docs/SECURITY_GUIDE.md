@@ -30,6 +30,8 @@ forge scan .
 forge scan ./agents/my-agent
 ```
 
+扫描命令会在目标目录生成 `security-scan-report.md`。如果发现 critical / high 问题，命令会返回非零退出码；`--fix` 目前只是预留参数，不会自动修改文件。
+
 当前扫描覆盖：
 
 - 硬编码密钥与 Token
