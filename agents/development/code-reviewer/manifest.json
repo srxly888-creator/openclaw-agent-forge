@@ -1,0 +1,77 @@
+{
+  "id": "code_reviewer_agent_v0",
+  "name": "代码审查 Agent",
+  "description": "审查代码质量、安全漏洞、性能问题",
+  "version": "0.1.0",
+
+  "input_schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["code", "language"],
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "代码片段"
+      },
+      "language": {
+        "type": "string",
+        "enum": ["python", "javascript", "typescript", "java", "go"],
+        "description": "编程语言"
+      },
+      "context": {
+        "type": "string",
+        "description": "审查上下文 (可选)"
+      }
+    }
+  },
+
+  "output_schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["passed", "issues"],
+    "properties": {
+      "passed": {
+        "type": "boolean",
+        "description": "是否通过审查"
+      },
+      "issues": {
+        "type": "array",
+        "description": "问题列表"
+      },
+      "score": {
+        "type": "number",
+        "description": "质量评分 (0-10)"
+      }
+    }
+  },
+
+  "required_capabilities": {
+    "platform": ["openclaw"],
+    "tools": ["ast-scanner", "eslint", "security-checker"],
+    "min_versions": {
+      "openclaw": "0.7.0"
+    }
+  },
+
+  "supported_worker_types": ["openclaw"],
+
+  "governance": {
+    "risk_level": "low",
+    "requires_approval_for_write": false,
+    "max_execution_time_sec": 60
+  },
+
+  "failure_handling": {
+    "fallback_strategy": "fail_fast",
+    "max_retries": 0
+  },
+
+  "execution": {
+    "timeout_ms": 60000,
+    "heartbeat_interval_ms": 10000
+  },
+
+  "artifacts": {
+    "required_artifacts": ["log", "report"]
+  }
+}

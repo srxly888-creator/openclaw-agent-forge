@@ -1,0 +1,77 @@
+{
+  "id": "content_creator_agent_v0",
+  "name": "内容创作 Agent",
+  "description": "策划与创作多语言内容，优化 SEO",
+  "version": "0.1.0",
+
+  "input_schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["topic", "language"],
+    "properties": {
+      "topic": {
+        "type": "string",
+        "description": "内容主题"
+      },
+      "language": {
+        "type": "string",
+        "enum": ["zh-CN", "en-US", "ja-JP"],
+        "description": "目标语言"
+      },
+      "keywords": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "关键词"
+      }
+    }
+  },
+
+  "output_schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["content", "metadata"],
+    "properties": {
+      "content": {
+        "type": "string",
+        "description": "创作的内容"
+      },
+      "metadata": {
+        "type": "object",
+        "properties": {
+          "word_count": {"type": "number"},
+          "seo_score": {"type": "number"}
+        }
+      }
+    }
+  },
+
+  "required_capabilities": {
+    "platform": ["openclaw"],
+    "tools": ["web-search", "seo-analyzer"],
+    "min_versions": {
+      "openclaw": "0.7.0"
+    }
+  },
+
+  "supported_worker_types": ["openclaw"],
+
+  "governance": {
+    "risk_level": "low",
+    "requires_approval_for_write": false,
+    "max_execution_time_sec": 120
+  },
+
+  "failure_handling": {
+    "fallback_strategy": "manual",
+    "max_retries": 1
+  },
+
+  "execution": {
+    "timeout_ms": 120000,
+    "heartbeat_interval_ms: 15000
+  },
+
+  "artifacts": {
+    "required_artifacts": ["log", "content"]
+  }
+}
