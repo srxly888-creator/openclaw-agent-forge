@@ -53,17 +53,23 @@ forge swarm create content-team --agents researcher,writer,editor
 forge scan .
 ```
 
+扫描会在目标目录生成 `security-scan-report.md`。如果发现 critical / high 问题，命令会返回非零退出码；`--fix` 目前只是预留参数，不会自动修改文件。
+
 四层标准校验：
 
 ```bash
 forge validate --four-layer --strict
 ```
 
+`--strict` 会把 warning 也视为失败，适合放进 CI 门禁。
+
 与 OpenClaw 同步：
 
 ```bash
 forge sync my-agent --direction bidirectional
 forge sync my-agent --watch
+forge sync my-agent --direction to-openclaw
+forge sync my-agent --direction from-openclaw
 ```
 
 列出智能体：
@@ -71,6 +77,7 @@ forge sync my-agent --watch
 ```bash
 forge list --scope both --format table
 forge list --scope forge --format json
+forge list --scope openclaw --format table
 ```
 
 ## 安全模型

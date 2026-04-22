@@ -33,6 +33,14 @@ forge sync my-agent --direction bidirectional
 forge sync my-agent --watch
 ```
 
+## 同步方向说明
+
+| direction | 行为 |
+|-----------|------|
+| `to-openclaw` | 从 Forge 推送到 OpenClaw |
+| `from-openclaw` | 从 OpenClaw 拉回到 Forge |
+| `bidirectional` | 先推送再拉回，适合首次对齐两侧内容 |
+
 ## 文件映射
 
 - `SOUL.md` -> `models.json`
@@ -43,6 +51,7 @@ forge sync my-agent --watch
 1. `--watch` 启动前，Forge 和 OpenClaw 两侧目录都必须存在。
 2. `models.json` 至少要包含一个 provider 和一个 model。
 3. API Key 应来自环境变量，避免写入并提交到仓库。
+4. 初次同步建议先跑一次 `forge sync <agent-name> --direction bidirectional`，确认两侧文件格式都正确，再开启监听。
 
 ## 故障排查
 

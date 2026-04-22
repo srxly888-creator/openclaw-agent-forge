@@ -36,6 +36,7 @@ forge scan agents/my-assistant
 ```
 
 扫描报告会写入目标目录下的 `security-scan-report.md`。
+如果发现 critical / high 问题，命令会返回非零退出码；`--fix` 目前只是预留参数。
 
 ## 4. 执行四层校验
 
@@ -50,14 +51,17 @@ forge validate --four-layer --strict
 ```bash
 forge sync my-assistant --direction to-openclaw
 forge sync my-assistant --direction from-openclaw
+forge sync my-assistant --direction bidirectional
 forge sync my-assistant --watch
 ```
 
 默认 OpenClaw 路径：`~/.openclaw`。
+`--watch` 会在首次同步完成后持续监听变更，适合反复调整智能体配置时使用。
 
 ## 6. 查看智能体列表
 
 ```bash
 forge list --scope both --format table
 forge list --scope forge --format json
+forge list --scope openclaw --format table
 ```
